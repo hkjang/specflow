@@ -1,0 +1,729 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@localhost:5432/specflow?schema=public"
+}
+
+// User & Auth
+enum Role {
+  ADMIN
+  PM
+  PLANNER
+  DEVELOPER
+  QA
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(PLANNER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdRequirements Requirement[] @relation("CreatedBy")
+  assignedRequirements Requirement[] @relation("AssignedTo")
+  ownedRequirements Requirement[] @relation("OwnedBy")
+  decisions DecisionLog[]
+  comments Comment[]
+  history  RequirementHistory[]
+  assignedOperations OperationQueue[]
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+}
+
+// Project & Classification
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  businesses Business[]
+  context    ProjectContext?
+  // Global settings or other relations can go here
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+  functions Function[]
+  
+  requirements Requirement[]
+}
+
+model Function {
+  id         String   @id @default(uuid())
+  name       String
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  type       String   // "Large" or "Small" via logic or sub-relation if needed. Keeping it flat for now as requested? 
+                      // Requirement says: Function -> Large Function -> Small Function. 
+                      // Let's implement Self-relation for flexible hierarchy or explicit types.
+                      // Detailed Requirement: Function (Large, Small). 
+                      // Let's use a ParentId for sub-functions.
+  parentId   String?
+  parent     Function? @relation("FunctionHierarchy", fields: [parentId], references: [id])
+  children   Function[] @relation("FunctionHierarchy")
+
+  requirements Requirement[]
+}
+
+model Menu {
+  id        String   @id @default(uuid())
+  name      String
+  depth     Int      // 1 or 2
+  parentId  String?
+  parent    Menu?    @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children  Menu[]   @relation("MenuHierarchy")
+
+  requirements Requirement[]
+}
+
+// Category & Data Mart
+model Category {
+  id          String   @id @default(uuid())
+  code        String?  @unique // e.g. FUNC, NFR
+  name        String
+  level       String?  // 'Large', 'Medium', 'Small'
+  description String?  @db.Text
+  keywords    String[] // Keywords for classification
+  isDefault   Boolean  @default(false)
+
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+
+  requirements Requirement[]
+  externalRequirements ExternalRequirement[]
+}
+
+model ExternalRequirement {
+  id          String   @id @default(uuid())
+  content     String   @db.Text
+  originalContent String? @db.Text
+  
+  source      String?  // e.g. "GitHub", "RFC"
+  sourceUrl   String?
+  sourceType  String?  // "Doc", "Issue", "Blog"
+  license     String?
+  
+  confidence  Float?
+  
+  categories  Category[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Requirement Management
+enum RequirementStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  DEPRECATED
+}
+
+model Requirement {
+  id        String   @id @default(uuid())
+  code      String   @unique // e.g. REQ-001
+  title     String
+  content   String   @db.Text
+  contentI18n Json?   // { "en": "...", "jp": "..." }
+  status    RequirementStatus @default(DRAFT)
+  version   Int      @default(1)
+  
+  // Classifications
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id])
+  functionId String?
+  function   Function? @relation(fields: [functionId], references: [id])
+  menuId     String?
+  menu       Menu?     @relation(fields: [menuId], references: [id])
+  
+  // Changed to Many-to-Many for multi-label classification
+  categories Category[]
+
+  // Relations
+  parentId  String?
+  parent    Requirement? @relation("RequirementHierarchy", fields: [parentId], references: [id])
+  children  Requirement[] @relation("RequirementHierarchy")
+
+  // Tracking
+  creatorId String
+  creator   User   @relation("CreatedBy", fields: [creatorId], references: [id])
+  assigneeId String?
+  assignee  User?  @relation("AssignedTo", fields: [assigneeId], references: [id])
+  ownerId   String?
+  owner     User?  @relation("OwnedBy", fields: [ownerId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  history   RequirementHistory[]
+  comments  Comment[]
+  decisions DecisionLog[]
+  
+  // Traceability to Source
+  sourceId  String?
+  source    ExtractionSource? @relation(fields: [sourceId], references: [id])
+
+  // --- Advanced Fields ---
+  maturity      RequirementMaturity @default(DRAFT)
+  trustGrade    Float               @default(0.0) 
+  
+  isAtomic      Boolean             @default(true)
+  hasCondition  Boolean             @default(false)
+  isTestable    Boolean             @default(false)
+  
+  outgoingRelations RequirementRelation[] @relation("SourceReq")
+  incomingRelations RequirementRelation[] @relation("TargetReq")
+
+  assetMetric   AssetMetric?
+  aiMetadata    AiMetadata?
+  qualityMetric QualityMetric?
+
+  regulations   Regulation[]
+  scenarios     BusinessScenario[]
+  
+  // Phase 7: Governance
+  trustScore    TrustScore?
+  approvalRequests ApprovalRequest[]
+}
+
+model RequirementHistory {
+  id            String   @id @default(uuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  changerId     String
+  changer       User     @relation(fields: [changerId], references: [id])
+  
+  field         String
+  oldValue      String?
+  newValue      String?
+  version       Int
+  
+  createdAt     DateTime @default(now())
+}
+
+model Comment {
+  id            String   @id @default(uuid())
+  content       String
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id])
+  
+  createdAt     DateTime @default(now())
+
+  // Sentiment Analysis
+  sentiment     String?  // POSITIVE, NEGATIVE, NEUTRAL
+  sentimentScore Float?
+}
+
+// Extraction Service Models
+enum ExtractionSourceType {
+  FILE
+  TEXT
+  URL
+  API
+}
+
+enum ExtractionJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DraftStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MERGED
+}
+
+model ExtractionSource {
+  id        String   @id @default(uuid())
+  type      ExtractionSourceType
+  content   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  jobs         ExtractionJob[]
+  drafts       RequirementDraft[]
+  requirements Requirement[]
+}
+
+model ExtractionJob {
+  id        String   @id @default(uuid())
+  sourceId  String
+  source    ExtractionSource @relation(fields: [sourceId], references: [id])
+  status    ExtractionJobStatus @default(PENDING)
+  progress  Int      @default(0)
+  result    Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  drafts    RequirementDraft[]
+}
+
+model RequirementDraft {
+  id           String   @id @default(uuid())
+  jobId        String
+  job          ExtractionJob @relation(fields: [jobId], references: [id])
+  sourceId     String
+  source       ExtractionSource @relation(fields: [sourceId], references: [id])
+  
+  code         String?
+  title        String?
+  content      String?  @db.Text
+  type         String?
+  
+  originalText String?  @db.Text
+  confidence   Float?
+  rationale    String?  @db.Text
+  
+  status       DraftStatus @default(PENDING)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// --- Advanced Knowledge Platform Extensions ---
+
+enum RequirementMaturity {
+  DRAFT
+  STANDARD
+  VERIFIED
+}
+
+enum RelationType {
+  DEPENDS_ON
+  CONFLICTS_WITH
+  DERIVED_FROM
+  REFINES
+  ALTERNATE_OF
+}
+
+model RequirementRelation {
+  id        String       @id @default(uuid())
+  sourceId  String
+  source    Requirement  @relation("SourceReq", fields: [sourceId], references: [id])
+  targetId  String
+  target    Requirement  @relation("TargetReq", fields: [targetId], references: [id])
+  type      RelationType
+  weight    Float?
+  reason    String?
+  createdAt DateTime     @default(now())
+}
+
+model AssetMetric {
+  id               String      @id @default(uuid())
+  requirementId    String      @unique
+  requirement      Requirement @relation(fields: [requirementId], references: [id])
+  
+  views            Int         @default(0)
+  adoptionRate     Float       @default(0.0)
+  modificationRate Float       @default(0.0)
+  roiEstimate      Float       @default(0.0)
+  
+  updatedAt        DateTime    @updatedAt
+}
+
+model AiMetadata {
+  id             String      @id @default(uuid())
+  requirementId  String      @unique
+  requirement    Requirement @relation(fields: [requirementId], references: [id])
+  
+  modelName      String?
+  promptHash     String?
+  sourcePath     Json?       // Extraction trace
+  reasoning      String?     // Why this requirement was created
+  biasScore      Float?
+  
+  createdAt      DateTime    @default(now())
+}
+
+model ProjectContext {
+  id             String       @id @default(uuid())
+  projectId      String       @unique
+  project        Project      @relation(fields: [projectId], references: [id])
+  
+  techStack      Json?        // e.g. ["NestJS", "React", "PostgreSQL"]
+  styleGuide     Json?        // Organization linguistic style
+  forbiddenTech  String[]
+  
+  orgStandards   OrgStandard[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model OrgStandard {
+  id             String         @id @default(uuid())
+  title          String
+  content        String
+  contextId      String
+  context        ProjectContext @relation(fields: [contextId], references: [id])
+}
+
+model DecisionLog {
+  id            String   @id @default(uuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  deciderId     String
+  decider       User     @relation(fields: [deciderId], references: [id])
+  type          String   // APPROVE, REJECT, HOLD
+  reason        String   @db.Text
+  createdAt     DateTime @default(now())
+}
+
+// Add ProjectContext relation to Project model
+// Add AssetMetric, AiMetadata, Relation relations to Requirement model
+
+model QualityMetric {
+  id              String      @id @default(uuid())
+  requirementId   String      @unique
+  requirement     Requirement @relation(fields: [requirementId], references: [id])
+  
+  ambiguityScore  Float       @default(0.0) // 0-100
+  redundancyScore Float       @default(0.0)
+  completeness    Float       @default(0.0)
+  correctness     Float       @default(0.0)
+  
+  overallScore    Float       @default(0.0)
+  
+  updatedAt       DateTime    @updatedAt
+}
+
+enum OperationType {
+  REVIEW
+  APPROVAL
+  CONFLICT_RESOLUTION
+  CLASSIFICATION_OVERRIDE
+}
+
+enum OperationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  IGNORED
+}
+
+model OperationQueue {
+  id            String          @id @default(uuid())
+  type          OperationType
+  status        OperationStatus @default(PENDING)
+  priority      Int             @default(0) // Higher is more urgent
+  
+  targetId      String?         // ID of the object (Requirement, etc.)
+  targetType    String          // "Requirement", "Category", etc.
+  
+  reason        String?         // Why is this in the queue?
+  assigneeId    String?
+  assignee      User?           @relation(fields: [assigneeId], references: [id])
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model AdminAlert {
+  id          String        @id @default(uuid())
+  title       String
+  message     String
+  severity    AlertSeverity @default(INFO)
+  isRead      Boolean       @default(false)
+  
+  category    String?       // "Quality", "Operation", "System"
+  meta        Json?
+  
+  createdAt   DateTime      @default(now())
+}
+
+
+// AI Integration
+enum AiProviderType {
+  OPENAI
+  OLLAMA
+  VLLM
+}
+
+model AiProvider {
+  id          String         @id @default(uuid())
+  name        String
+  type        AiProviderType
+  endpoint    String         // API Base URL
+  apiKey      String?
+  models      String         // Comma separated or specific model to use
+  
+  isActive    Boolean        @default(true)
+  priority    Int            @default(1) // Higher priority attempts first
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model AiLog {
+  id              String   @id @default(uuid())
+  providerName    String
+  modelUsed       String
+  
+  promptTokens    Int      @default(0)
+  completionTokens Int     @default(0)
+  totalTokens     Int      @default(0)
+  durationMs      Int      @default(0)
+  
+  status          String   // SUCCESS, FAILED
+  errorMessage    String?
+  
+  actionContext   String?  // e.g. "REQUIREMENT_TRANSLATION"
+  userId          String?
+  
+  createdAt       DateTime @default(now())
+}
+
+// Explanation System
+model Explanation {
+  id            String   @id @default(uuid())
+  category      String   // MENU, SCREEN, FIELD, BUTTON, API
+  key           String   @unique // structured key e.g., "menu.main.requirements"
+  title         String?  // Short summary used for tooltips or headers
+  content       String   @db.Text // Detailed explanation
+  examples      String?  @db.Text // Example usage text
+  
+  isAutoGenerated Boolean @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// --- New Admin Modules ---
+
+model Crawler {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  schedule  String   // Cron expression
+  status    String   // ACTIVE, PAUSED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DataSource {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // FILE, URL
+  url       String   // Path or URL
+  status    String   // PENDING, SYNCED, ERROR
+  lastSync  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OperationRule {
+  id        String   @id @default(uuid())
+  name      String
+  condition String
+  action    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PartnerProposal {
+  id        String   @id @default(uuid())
+  title     String
+  partner   String
+  content   String   @db.Text
+  status    String   // DRAFT, SENT
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  category  String   // GENERAL, SECURITY, LOGGING
+  updatedAt DateTime @updatedAt
+}
+
+// --- Advanced Knowledge Platform: Phase 2 Extensions ---
+
+model Regulation {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?  @db.Text
+  authority   String   // e.g. "Financial Supervisory Service", "Ministry of Health"
+  article     String?  // Legal article reference e.g. "Article 21"
+  riskLevel   String   // HIGH, MEDIUM, LOW
+  
+  industries  String[] // Array of Industry Codes this applies to e.g. ["IND-FIN"]
+  
+  requirements Requirement[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Terminology {
+  id          String   @id @default(uuid())
+  term        String   
+  definition  String   @db.Text
+  industry    String?  // If specific to an industry
+  synonyms    String[]
+  forbidden   Boolean  @default(false) // If true, this term should NOT be used (e.g. deprecated)
+  replacement String?  // What to use instead
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([term, industry]) // Term uniqueness per industry
+}
+
+model BusinessScenario {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  industry    String?  // "IND-FIN"
+  domain      String?  // "DOM-CUST"
+  
+  steps       Json     // Array of steps: [{ order: 1, actor: "User", action: "Login", expectedResult: "Success" }]
+  
+  requirements Requirement[] // Requirements needed to fulfill this scenario
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProjectTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  industry    String
+  description String?
+  
+  // Stored as JSON for flexibility, or could refer to Requirements
+  structure   Json     // { phases: [...], defaultModules: [...] }
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- API Productization: Phase 5 ---
+
+model ApiProductKey {
+  id          String   @id @default(uuid())
+  key         String   @unique // The secret key (e.g. "pk_live_...")
+  partnerName String
+  plan        String   // "FREE", "ENTERPRISE"
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  usageLogs   ApiUsageLog[]
+}
+
+model ApiUsageLog {
+  id          String   @id @default(uuid())
+  keyId       String
+  key         ApiProductKey @relation(fields: [keyId], references: [id])
+  
+  endpoint    String   // e.g. "/api/v1/product/requirements"
+  method      String   // GET, POST
+  statusCode  Int
+  durationMs  Int
+  
+  createdAt   DateTime @default(now())
+}
+
+// --- Reliability & Governance: Phase 7 ---
+
+model TrustScore {
+  id              String      @id @default(uuid())
+  requirementId   String      @unique
+  requirement     Requirement @relation(fields: [requirementId], references: [id])
+  
+  sourceReliability Float     @default(0.0)
+  updateRecency     Float     @default(0.0)
+  usageFrequency    Float     @default(0.0)
+  expertValidation  Float     @default(0.0)
+  totalScore        Float     @default(0.0)
+  
+  updatedAt       DateTime    @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?
+  action      String   // CREATE, UPDATE, DELETE, APPROVE
+  resource    String   // Requirement, Regulation
+  resourceId  String?
+  diff        Json?    // Before/After
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+}
+
+model ApprovalRequest {
+  id              String   @id @default(uuid())
+  requirementId   String
+  requirement     Requirement @relation(fields: [requirementId], references: [id])
+  
+  requesterId     String
+  reviewerId      String?
+  status          String   // PENDING, APPROVED, REJECTED
+  
+  comments        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// --- Enterprise Operations: Phase 8 ---
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  domain      String?  @unique // e.g. "acme.com" for tenant resolution
+  plan        String   @default("FREE") 
+  
+  users       User[]
+  projects    Project[]
+  
+  slaMetrics  SlaMetric[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SlaMetric {
+  id              String   @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  
+  metricType      String   // UPTIME, API_LATENCY, ERROR_RATE
+  value           Float
+  timestamp       DateTime @default(now())
+}
