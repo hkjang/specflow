@@ -39,9 +39,14 @@ export class ValidatorAgent {
         }, 'VALIDATION'); // Assuming VALIDATION model type exists or supported
         
         const json = JSON.parse(res.content);
-        // Ensure validatedRequirements exists, else use input
+        // Ensure validatedRequirements exists and has valid items
         if (!json.validatedRequirements || !Array.isArray(json.validatedRequirements) || json.validatedRequirements.length === 0) {
             json.validatedRequirements = requirements;
+        } else {
+             // Filter out garbage items from validation result
+            const valid = json.validatedRequirements.filter((item: any) => item && item.title && item.content);
+            if (valid.length === 0) json.validatedRequirements = requirements;
+            else json.validatedRequirements = valid;
         }
         return json;
     } catch (e) {

@@ -39,8 +39,17 @@ export class RefinerAgent {
         }, 'GENERATION');
         
         const json = JSON.parse(res.content);
-        const refined = json.refinedRequirements || data; // Use data if missing
-        return (Array.isArray(refined) && refined.length > 0) ? refined : data; // Fallback to original if output is empty
+        let refined = json.refinedRequirements || data; // Use data if missing
+        
+        if (Array.isArray(refined) && refined.length > 0) {
+            // Validate items
+            const validRefined = refined.filter((item: any) => item && item.title && item.content);
+            if (validRefined.length > 0) {
+                return validRefined;
+            }
+        }
+        
+        return data; // Fallback to original if refinement failed or produced garbage
     } catch (e) {
         this.logger.error('Refinement failed', e);
         return data;  
