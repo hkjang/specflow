@@ -3,8 +3,26 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const categories = [
+    // --- Phase 1: Industry Standards (Root Level) ---
     {
-        code: 'FUNC', name: '기능', description: '사용자 기능 요구사항',
+        code: 'IND-FIN', name: '금융 (Finance)', description: '금융권 표준 요구사항', level: 'Industry',
+        children: [
+            { 
+                code: 'DOM-BNK', name: '은행 (Banking)', level: 'Domain',
+                children: [
+                    { name: '계좌 관리', level: 'Function' }, { name: '이체/송금', level: 'Function' }, { name: '여신/수신', level: 'Function' }
+                ]
+            },
+            {
+                code: 'DOM-SEC', name: '증권 (Securities)', level: 'Domain',
+                children: [
+                   { name: '주식 매매', level: 'Function' }, { name: '차트 분석', level: 'Function' }
+                ]
+            }
+        ]
+    },
+    {
+        code: 'FUNC', name: '기능', description: '사용자 기능 요구사항', level: 'Large', // Legacy structure support
         children: [
             {
                 name: '사용자 관리',
@@ -106,16 +124,17 @@ const categories = [
 async function main() {
     console.log('Seeding Categories...');
 
-    for (const catData of categories) {
-        // Upsert Large Category
+    for (const catData of categories as any[]) {
+        // Upsert Category with Level Check
         const largeCategory = await prisma.category.upsert({
             where: { code: catData.code },
-            update: { name: catData.name, description: catData.description, level: 'Large' },
+            // Add explicit level fallback if missing in old data
+            update: { name: catData.name, description: catData.description, level: catData.level || 'Large' },
             create: {
                 code: catData.code,
                 name: catData.name,
                 description: catData.description,
-                level: 'Large',
+                level: catData.level || 'Large',
                 isDefault: true
             }
         });
@@ -130,14 +149,19 @@ async function main() {
                     where: { name: midData.name, parentId: largeCategory.id }
                 });
 
+                // Determine Level dynamically
+                let midLevel = midData.level || 'Medium';
+                if (!midData.level && catData.level === 'Industry') midLevel = 'Domain';
+
                 if (midCategory) {
                     // Update if needed
                 } else {
                     midCategory = await prisma.category.create({
                         data: {
+                            code: midData.code || undefined, // Allow code if present (like DOM-BNK)
                             name: midData.name,
                             parentId: largeCategory.id,
-                            level: 'Medium',
+                            level: midLevel,
                             isDefault: true
                         }
                     });
@@ -155,7 +179,7 @@ async function main() {
                                 data: {
                                     name: smallData.name,
                                     parentId: midCategory.id,
-                                    level: 'Small',
+                                    level: smallData.level || 'Small',
                                     isDefault: true
                                 }
                             });

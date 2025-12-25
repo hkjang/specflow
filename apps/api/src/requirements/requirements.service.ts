@@ -204,12 +204,36 @@ export class RequirementsService {
       this.logger.error('Sentiment Analysis failed', e);
     }
 
-    // 2. Save Comment
+    // 2. Resolve Author (Handle 'system' or missing ID)
+    let authorId = userId;
+    if (!authorId || authorId === 'system') {
+        const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' } });
+        if (admin) {
+            authorId = admin.id;
+        } else {
+             const anyUser = await this.prisma.user.findFirst();
+             if (anyUser) {
+                 authorId = anyUser.id;
+             } else {
+                 const systemUser = await this.prisma.user.create({
+                     data: {
+                         email: 'system-comment@specflow.ai',
+                         name: 'System Agent',
+                         password: 'hashed_placeholder',
+                         role: 'ADMIN'
+                     }
+                 });
+                 authorId = systemUser.id;
+             }
+        }
+    }
+
+    // 3. Save Comment
     return this.prisma.comment.create({
       data: {
         content,
         requirementId,
-        authorId: userId,
+        authorId: authorId,
         sentiment,
         sentimentScore
       },

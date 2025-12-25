@@ -25,14 +25,19 @@ export class MaturityService {
         // 2. Must be atomic (isAtomic = true)
         // 3. Must have positive adoption/ROI (if metrics exist)
 
-        if (req.status !== RequirementStatus.APPROVED) {
-            throw new Error('Only APPROVED requirements can be promoted to STANDARD');
+        // Promotion Criteria Logic
+        // Relaxed: A DRAFT requirement can be promoted directly (effectively approving it)
+        
+        let newStatus = req.status;
+        if (req.status === RequirementStatus.DRAFT || req.status === RequirementStatus.REVIEW) {
+             newStatus = RequirementStatus.APPROVED;
         }
 
         // Update
         return this.prisma.requirement.update({
             where: { id: requirementId },
             data: {
+                status: newStatus,
                 maturity: RequirementMaturity.STANDARD,
                 trustGrade: { increment: 10 }, // Boost trust on promotion
             },
