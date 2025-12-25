@@ -210,6 +210,13 @@ export class ExtractionService {
         return { message: `Rejected ${result.count} drafts`, count: result.count };
     }
 
+    async getJobDrafts(jobId: string) {
+        return this.prisma.requirementDraft.findMany({
+            where: { jobId },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
     async getAllJobs() {
         // Fetch all extraction jobs with necessary relations for dashboard
         return this.prisma.extractionJob.findMany({

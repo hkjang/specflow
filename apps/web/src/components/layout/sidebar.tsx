@@ -138,7 +138,10 @@ const adminNavItems: NavItem[] = [
             { name: '추출 모델', href: '/admin/ai/extraction' },
             { name: '분류 모델', href: '/admin/ai/classification' },
             { name: '데이터 수집', href: '/admin/collection' },
-            { name: '크롤러 상태', href: '/admin/collection/crawlers' },
+            { name: '크롤러 관리', href: '/admin/collection/crawlers' },
+            { name: '수집 워크플로우', href: '/admin/collection/workflow' },
+            { name: '수집 이력', href: '/admin/collection/history' },
+            { name: '수집 데이터', href: '/admin/collection/data' },
         ]
     },
     

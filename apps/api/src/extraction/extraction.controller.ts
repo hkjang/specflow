@@ -87,4 +87,19 @@ export class ExtractionController {
     async deleteJob(@Param('id') id: string) {
         return this.extractionService.deleteJob(id);
     }
+
+    @Get('jobs/:id/drafts')
+    async getJobDrafts(@Param('id') jobId: string) {
+        return this.extractionService.getJobDrafts(jobId);
+    }
+
+    @Post('drafts/:id/approve')
+    async approveDraft(@Param('id') id: string) {
+        return this.extractionService.updateDraftStatus(id, { status: 'APPROVED' });
+    }
+
+    @Post('drafts/:id/reject')
+    async rejectDraft(@Param('id') id: string) {
+        return this.extractionService.updateDraftStatus(id, { status: 'REJECTED' });
+    }
 }

@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { 
     RefreshCw, CheckCircle, XCircle, Clock, Activity, 
-    TrendingUp, Calendar, FileText, AlertTriangle, Zap
+    TrendingUp, Calendar, FileText, AlertTriangle, Zap, Database, ExternalLink
 } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface CrawlHistory {
@@ -248,10 +249,16 @@ export default function CrawlHistoryPage() {
                                                                 <span className="text-slate-400">페이지:</span>
                                                                 <span className="font-bold text-blue-600 ml-1">{run.pagesFound}</span>
                                                             </div>
-                                                            <div className="text-xs">
+                                                            <Link 
+                                                                href="/admin/collection/data" 
+                                                                className="text-xs flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors group"
+                                                                title="수집 데이터 보기"
+                                                            >
+                                                                <Database className="h-3 w-3 text-emerald-500" />
                                                                 <span className="text-slate-400">추출:</span>
-                                                                <span className="font-bold text-emerald-600 ml-1">{run.itemsExtracted}건</span>
-                                                            </div>
+                                                                <span className="font-bold text-emerald-600">{run.itemsExtracted}건</span>
+                                                                <ExternalLink className="h-3 w-3 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                            </Link>
                                                         </>
                                                     )}
                                                 </div>
