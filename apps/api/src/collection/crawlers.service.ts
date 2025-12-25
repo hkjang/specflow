@@ -4,10 +4,14 @@ import { Prisma } from '@prisma/client';
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
 import RSSParser from 'rss-parser';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class CrawlersService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private aiService: AiService
+    ) { }
 
     create(data: Prisma.CrawlerCreateInput) {
         return this.prisma.crawler.create({ data });
@@ -397,7 +401,7 @@ export class CrawlersService {
         return errors[Math.floor(Math.random() * errors.length)];
     }
     
-    // ==== RSS FEED PARSING ====
+    // ==== RSS FEED PARSING WITH AI CONVERSION ====
     private async parseRssFeed(url: string, crawlerName: string): Promise<Array<{
         title: string;
         text: string;
@@ -413,23 +417,52 @@ export class CrawlersService {
             
             console.log(`[RSS] Found ${feed.items?.length || 0} items in "${feed.title}"`);
             
-            for (const item of (feed.items || []).slice(0, 10)) {
-                const title = item.title || '제목 없음';
-                const content = item.contentSnippet || item.content || item.summary || '';
+            // Process first 5 items with AI (limit to avoid timeout)
+            for (const item of (feed.items || []).slice(0, 5)) {
+                const newsTitle = item.title || '제목 없음';
+                const newsContent = item.contentSnippet || item.content || item.summary || '';
                 const link = item.link || '';
                 const pubDate = item.pubDate || item.isoDate || '';
                 
-                results.push({
-                    title: title,
-                    text: content,
-                    description: `[${crawlerName}] ${title}\n원문: ${link}\n발행일: ${pubDate}\n\n${content.slice(0, 300)}`,
-                    confidence: 0.75 + Math.random() * 0.2
-                });
+                try {
+                    // AI converts news to IT requirements
+                    const aiResult = await this.aiService.convertNewsToRequirements(newsTitle, newsContent);
+                    
+                    // Add AI-extracted requirements
+                    for (const req of aiResult.requirements || []) {
+                        results.push({
+                            title: req.title,
+                            text: req.content,
+                            description: `[${req.type}][${req.priority}] ${req.content}\n\n📰 출처: ${newsTitle}\n🔗 ${link}\n📅 ${pubDate}\n\n💡 근거: ${req.rationale}`,
+                            confidence: aiResult.relevanceScore || 0.8
+                        });
+                    }
+                    
+                    // If no requirements extracted but high relevance, add raw news
+                    if ((aiResult.requirements?.length || 0) === 0 && aiResult.relevanceScore > 0.3) {
+                        results.push({
+                            title: `[뉴스] ${newsTitle}`,
+                            text: aiResult.summary || newsContent,
+                            description: `[NEWS] ${crawlerName}\n원문: ${link}\n발행일: ${pubDate}\n\n${aiResult.summary || newsContent.slice(0, 300)}`,
+                            confidence: aiResult.relevanceScore
+                        });
+                    }
+                } catch (aiError: any) {
+                    console.warn(`[RSS] AI conversion failed for "${newsTitle}": ${aiError.message}`);
+                    // Fallback: add raw news item without AI processing
+                    results.push({
+                        title: newsTitle,
+                        text: newsContent,
+                        description: `[${crawlerName}] ${newsTitle}\n원문: ${link}\n발행일: ${pubDate}\n\n${newsContent.slice(0, 300)}`,
+                        confidence: 0.5
+                    });
+                }
             }
         } catch (error: any) {
             console.error(`[RSS] Parse error: ${error.message}`);
         }
         
+        console.log(`[RSS] Extracted ${results.length} IT requirements from news feed`);
         return results;
     }
     

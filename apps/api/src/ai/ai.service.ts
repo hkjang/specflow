@@ -189,4 +189,64 @@ export class AiService {
             throw new Error('Failed to generate improvement');
         }
     }
+
+    /**
+     * Convert news article to IT development/operation requirements
+     */
+    async convertNewsToRequirements(newsTitle: string, newsContent: string): Promise<{
+        requirements: Array<{
+            title: string;
+            content: string;
+            type: string;
+            priority: string;
+            rationale: string;
+        }>;
+        relevanceScore: number;
+        summary: string;
+    }> {
+        const prompt = `
+            당신은 시니어 IT 요건 분석가입니다.
+            다음 뉴스 기사를 분석하여 IT 시스템 개발 또는 운영에 필요한 요건을 도출해주세요.
+            
+            뉴스 제목: "${newsTitle}"
+            뉴스 내용: "${newsContent.slice(0, 2000)}"
+            
+            분석 지침:
+            1. 이 뉴스에서 IT 시스템에 적용해야 할 사항이 있는지 파악
+            2. 보안, 규정 준수, 성능, 사용자 경험 등의 관점에서 요건 도출
+            3. 실행 가능하고 측정 가능한 요건으로 작성
+            4. "시스템은 ~해야 한다" 형식으로 작성
+            5. 관련성이 낮은 뉴스라면 빈 배열 반환
+            
+            JSON 형식으로 응답:
+            {
+                "requirements": [
+                    {
+                        "title": "요건 제목 (간결하게)",
+                        "content": "상세 요건 내용 (시스템은 ~해야 한다 형식)",
+                        "type": "SECURITY | PERFORMANCE | COMPLIANCE | UX | FUNCTIONAL | OPERATIONAL",
+                        "priority": "HIGH | MEDIUM | LOW",
+                        "rationale": "이 요건이 필요한 이유 (뉴스 기반)"
+                    }
+                ],
+                "relevanceScore": 0.0-1.0,
+                "summary": "뉴스 요약 및 IT 시스템 관련성 설명"
+            }
+        `;
+
+        try {
+            const response = await this.providerManager.execute({
+                messages: [{ role: 'user', content: prompt }],
+                responseFormat: 'json_object',
+                temperature: 0.3,
+            }, 'GENERATION');
+
+            const result = JSON.parse(response.content || '{}');
+            console.log(`[AI] Extracted ${result.requirements?.length || 0} requirements from news: "${newsTitle}"`);
+            return result;
+        } catch (e) {
+            console.error('News to requirement conversion failed', e);
+            return { requirements: [], relevanceScore: 0, summary: 'AI 분석 실패' };
+        }
+    }
 }
