@@ -16,6 +16,7 @@ export class OllamaProvider implements IAiProvider {
         this.openai = new OpenAI({
             baseURL: baseUrl, // e.g., http://localhost:11434/v1
             apiKey: 'ollama', // key not required but SDK needs one
+            timeout: 600000, // 10 minutes timeout for slow local inference
         });
     }
 
