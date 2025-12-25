@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { knowledgeApi } from '@/lib/api';
 import { PageHeader } from '@/components/layout/PageHeader';

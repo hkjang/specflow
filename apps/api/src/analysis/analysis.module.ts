@@ -8,8 +8,10 @@ import { AiModule } from '../ai/ai.module';
 
 import { AnalysisController } from './analysis.controller';
 
+import { AccuracyModule } from './accuracy/accuracy.module';
+
 @Module({
-    imports: [PrismaModule, AiModule],
+    imports: [PrismaModule, AiModule, AccuracyModule],
     controllers: [AnalysisController],
     providers: [ConflictService, RecommendationService, AdvancedAnalysisService, LinguisticsService],
     exports: [ConflictService, RecommendationService, AdvancedAnalysisService, LinguisticsService],

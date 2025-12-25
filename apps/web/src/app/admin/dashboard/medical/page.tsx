@@ -123,8 +123,8 @@ export default function MedicalDashboardPage() {
                             <div className="bg-slate-50 p-3 rounded border border-slate-100 mt-4">
                                 <div className="text-xs font-bold text-slate-500 mb-2">비표준 용어 감지 (Non-standard Terms)</div>
                                 <div className="flex flex-wrap gap-2">
-                                    <span className="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-xs rounded shadow-sm">Heart Attack (-> Myocardial Infarction)</span>
-                                    <span className="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-xs rounded shadow-sm">Sugar (-> Glucose)</span>
+                                    <span className="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-xs rounded shadow-sm">Heart Attack (&rarr; Myocardial Infarction)</span>
+                                    <span className="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-xs rounded shadow-sm">Sugar (&rarr; Glucose)</span>
                                 </div>
                             </div>
                         </div>

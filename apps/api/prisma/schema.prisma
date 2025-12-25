@@ -713,6 +713,7 @@ model Organization {
   projects    Project[]
   
   slaMetrics  SlaMetric[]
+  accuracyMetrics AccuracyMetric[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -726,4 +727,61 @@ model SlaMetric {
   metricType      String   // UPTIME, API_LATENCY, ERROR_RATE
   value           Float
   timestamp       DateTime @default(now())
+}
+
+// --- Accuracy Heatmap System ---
+
+model AccuracyMetric {
+  id          String   @id @default(uuid())
+  dimension   String   // INDUSTRY, FUNCTION, SOURCE
+  category    String   // e.g., "Finance", "Registration", "RFP"
+  aiTask      String   // EXTRACTION, CLASSIFICATION, DEDUPLICATION, SUMMARIZATION
+  
+  accuracy    Float    // 0.0 - 1.0
+  sampleCount Int      @default(0)
+  
+  impact      Float    @default(0.5) // Usage frequency (0.0 - 1.0)
+  risk        Float    @default(0.5) // Regulatory sensitivity (0.0 - 1.0)
+  
+  majorCause  String?  // e.g. "Ambiguous sentence", "Lack of context"
+  
+  period      String?  // e.g. "2024-Q1", "2024-12"
+  timestamp   DateTime @default(now())
+
+  // Multi-dimensional Expansion
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  userId         String?       // For skill analysis
+  aiModel        String?       // e.g. "GPT-4", "Ollama"
+  
+  @@unique([dimension, category, aiTask, period, organizationId, aiModel]) // Expanded uniqueness
+}
+
+model QualityPrediction {
+  id              String   @id @default(uuid())
+  dimension       String
+  category        String
+  
+  predictedAccuracy Float
+  confidenceLow     Float
+  confidenceHigh    Float
+  
+  predictionDate  DateTime // When this prediction applies to (e.g. next month)
+  createdAt       DateTime @default(now())
+}
+
+model AccuracyFeedback {
+  id          String   @id @default(uuid())
+  targetType  String   // REQUIREMENT, ...
+  targetId    String
+  
+  aiTask      String   // CLASSIFICATION, EXTRACTION
+  
+  predictedValue String? // What AI said
+  actualValue    String? // What Human said
+  isCorrect      Boolean
+  
+  comment     String?
+  reviewerId  String?
+  timestamp   DateTime @default(now())
 }
