@@ -63,6 +63,8 @@ export const adminApi = {
     getTrends: (period: 'daily' | 'weekly') => api.get(`/dashboard/admin/trends?period=${period}`),
     getTrendSummary: (period: 'daily' | 'weekly') => api.get(`/dashboard/admin/trend-summary?period=${period}`),
     getRisks: () => api.get('/dashboard/admin/risks'),
+    getRecentActivities: (limit?: number) => api.get(`/dashboard/activities${limit ? `?limit=${limit}` : ''}`),
+    getProgressStats: () => api.get('/dashboard/progress'),
 
     // Analysis
     checkDuplicates: (content: string) => api.post('/analysis/duplicates', { content }),

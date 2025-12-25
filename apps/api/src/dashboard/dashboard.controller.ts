@@ -45,4 +45,14 @@ export class DashboardController {
     async getTrendSummary(@Query('period') period: 'daily' | 'weekly') {
         return this.dashboardService.getTrendSummary(period);
     }
+
+    @Get('activities')
+    async getRecentActivities(@Query('limit') limit?: string) {
+        return this.dashboardService.getRecentActivities(limit ? parseInt(limit) : 10);
+    }
+
+    @Get('progress')
+    async getProgressStats() {
+        return this.dashboardService.getProgressStats();
+    }
 }

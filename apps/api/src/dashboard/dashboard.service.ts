@@ -207,4 +207,77 @@ export class DashboardService {
             return { summary: 'AI Analysis currently unavailable.' };
         }
     }
+
+    async getRecentActivities(limit: number = 10) {
+        // Fetch recent requirement history (changes)
+        const activities = await this.prisma.requirementHistory.findMany({
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                requirement: {
+                    select: { id: true, title: true, code: true }
+                },
+                changer: {
+                    select: { id: true, name: true, email: true }
+                }
+            }
+        });
+
+        return activities.map(a => ({
+            id: a.id,
+            type: 'requirement_change',
+            title: a.requirement?.title || 'Unknown',
+            code: a.requirement?.code || '',
+            action: a.field || 'UPDATED',
+            user: a.changer?.name || a.changer?.email || 'System',
+            timestamp: a.createdAt,
+            summary: `${a.field || '요건'}이(가) 변경되었습니다.`
+        }));
+    }
+
+    async getProgressStats() {
+        // Get status distribution
+        const statusCounts = await this.prisma.requirement.groupBy({
+            by: ['status'],
+            _count: { id: true }
+        });
+
+        // Get maturity distribution
+        const maturityCounts = await this.prisma.requirement.groupBy({
+            by: ['maturity'],
+            _count: { id: true }
+        });
+
+        // Get weekly trend (last 4 weeks)
+        const fourWeeksAgo = new Date();
+        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+
+        const weeklyData = await this.prisma.requirement.findMany({
+            where: { createdAt: { gte: fourWeeksAgo } },
+            select: { createdAt: true, status: true }
+        });
+
+        // Group by week
+        const weeklyTrend: Record<string, { created: number, approved: number }> = {};
+        weeklyData.forEach(r => {
+            const weekNum = Math.floor((new Date().getTime() - r.createdAt.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const weekLabel = `W-${weekNum}`;
+            if (!weeklyTrend[weekLabel]) weeklyTrend[weekLabel] = { created: 0, approved: 0 };
+            weeklyTrend[weekLabel].created++;
+            if (r.status === 'APPROVED') weeklyTrend[weekLabel].approved++;
+        });
+
+        // Get extraction job stats
+        const extractionStats = await this.prisma.extractionJob.groupBy({
+            by: ['status'],
+            _count: { id: true }
+        });
+
+        return {
+            statusDistribution: statusCounts.map(s => ({ status: s.status, count: s._count.id })),
+            maturityDistribution: maturityCounts.map(m => ({ maturity: m.maturity, count: m._count.id })),
+            weeklyTrend: Object.entries(weeklyTrend).map(([week, data]) => ({ week, ...data })).reverse(),
+            extractionStats: extractionStats.map(e => ({ status: e.status, count: e._count.id }))
+        };
+    }
 }
