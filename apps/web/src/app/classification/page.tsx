@@ -7,18 +7,26 @@ import { Label } from '@/components/ui/label';
 import { api, aiApi, classificationApi } from '@/lib/api';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Plus, Tag, Layers, Construction, Wand2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Tag, Layers, Construction, Wand2, Pencil, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 
-function CategoryForm({ initialData, onSuccess }: { initialData?: any, onSuccess: () => void }) {
+interface CategoryFormProps { 
+    initialData?: any; 
+    parentId?: string; 
+    defaultLevel?: string;
+    onSuccess: () => void 
+}
+
+function CategoryForm({ initialData, parentId, defaultLevel, onSuccess }: CategoryFormProps) {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         code: initialData?.code || '',
         name: initialData?.name || '',
-        level: initialData?.level || 'Industry',
-        description: initialData?.description || ''
+        level: initialData?.level || defaultLevel || 'Industry',
+        description: initialData?.description || '',
+        parentId: initialData?.parentId || parentId || undefined
     });
 
     const isEdit = !!initialData;
@@ -68,7 +76,9 @@ function CategoryForm({ initialData, onSuccess }: { initialData?: any, onSuccess
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="Industry">산업/업종 (Industry)</SelectItem>
-                        <SelectItem value="Large">대분류 (Function)</SelectItem>
+                        <SelectItem value="Domain">도메인 (Domain)</SelectItem>
+                        <SelectItem value="Function">기능 (Function)</SelectItem>
+                        <SelectItem value="Large">대분류 (Large)</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -95,12 +105,27 @@ export default function ClassificationPage() {
     const [providers, setProviders] = useState<any[]>([]);
     const [selectedProviderId, setSelectedProviderId] = useState<string>("");
     const [openAiDialog, setOpenAiDialog] = useState(false);
+    const [stats, setStats] = useState<Record<string, number>>({});
+    const [searchQuery, setSearchQuery] = useState('');
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
         fetchCategories();
         fetchProviders();
+        fetchStats();
     }, [projectId]);
+
+    const fetchStats = async () => {
+        try {
+            const res = await classificationApi.getStats();
+            // Map array to object for O(1) lookup: { catId: count }
+            const statsMap = res.data.reduce((acc: any, curr: any) => {
+                acc[curr.id] = curr.count;
+                return acc;
+            }, {});
+            setStats(statsMap);
+        } catch (err) { console.error(err); }
+    };
 
     const fetchCategories = async () => {
         try {
@@ -112,6 +137,13 @@ export default function ClassificationPage() {
             console.error(err);
         }
     };
+
+    // Filter categories based on search
+    const filteredCategories = categories.filter(c => 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        c.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const fetchProviders = async () => {
         try {
@@ -208,13 +240,23 @@ export default function ClassificationPage() {
                 </Dialog>
             </div>
 
+            <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input 
+                    placeholder="분류 검색 (이름, 코드, 설명)..." 
+                    className="pl-9 bg-white"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                />
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {categories.length === 0 && (
                     <div className="col-span-full p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
                         등록된 분류 체계가 없습니다. (시스템 설정을 확인하세요)
                     </div>
                 )}
-                {categories.map((cat) => (
+                {filteredCategories.map((cat) => (
                     <Card key={cat.id} className="p-5 hover:shadow-md transition-shadow border-slate-200 relative group">
                         <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Dialog>
@@ -257,29 +299,82 @@ export default function ClassificationPage() {
                                 {cat.code}
                             </span>
                         </div>
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">{cat.name}</h3>
+                        <h3 className="font-bold text-lg text-slate-800 mb-1 flex items-center gap-2">
+                            {cat.name}
+                            {stats[cat.id] > 0 && (
+                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                                    {stats[cat.id]} reqs
+                                </span>
+                            )}
+                        </h3>
                         <p className="text-xs text-slate-400 mb-3 line-clamp-2">{cat.description}</p>
                         
                         <div className="text-sm text-slate-600 flex flex-col gap-2 bg-slate-50 p-3 rounded h-40 overflow-y-auto">
-                            <div className="flex items-center gap-2 mb-1 border-b border-slate-200 pb-1">
-                                <Tag className="h-3 w-3 text-slate-400" />
-                                <span className="font-semibold text-xs">하위 분류 ({cat.children?.length || 0})</span>
+                            <div className="flex items-center justify-between mb-2 border-b border-slate-200 pb-1">
+                                <div className="flex items-center gap-2">
+                                    <Tag className="h-3 w-3 text-slate-400" />
+                                    <span className="font-semibold text-xs">하위 분류 ({cat.children?.length || 0})</span>
+                                </div>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <button className="text-[10px] bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                            <Plus className="h-3 w-3" />추가
+                                        </button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>'{cat.name}'의 하위 분류 추가</DialogTitle>
+                                        </DialogHeader>
+                                        <CategoryForm 
+                                            parentId={cat.id} 
+                                            defaultLevel={cat.level === 'Industry' ? 'Domain' : 'Medium'}
+                                            onSuccess={() => fetchCategories()} 
+                                        />
+                                    </DialogContent>
+                                </Dialog>
                             </div>
                             {cat.children && cat.children.length > 0 ? (
                                 <ul className="space-y-1">
                                     {cat.children.map((child: any) => (
-                                        <li key={child.id} className="text-xs">
-                                            <div className="flex items-center gap-1">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                                <span className="font-medium">{child.name}</span>
-                                                {child.code && <span className="p-0.5 bg-slate-100 text-[10px] rounded">{child.code}</span>}
+                                        <li key={child.id} className="text-xs group/item">
+                                            <div className="flex items-center justify-between hover:bg-slate-100 p-1 rounded -ml-1 -mr-1">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                                    <span className="font-medium">{child.name}</span>
+                                                    {child.code && <span className="p-0.5 bg-slate-100 text-[10px] rounded border border-slate-200">{child.code}</span>}
+                                                </div>
+                                                <div className="flex gap-1 opacity-0 group-hover/item:opacity-100">
+                                                     <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <button className="text-slate-400 hover:text-blue-600"><Pencil className="h-3 w-3" /></button>
+                                                        </DialogTrigger>
+                                                        <DialogContent>
+                                                            <DialogHeader><DialogTitle>분류 수정</DialogTitle></DialogHeader>
+                                                            <CategoryForm initialData={child} onSuccess={() => fetchCategories()} />
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                    <button className="text-slate-400 hover:text-red-600" onClick={async () => {
+                                                        if(confirm(`'${child.name}'을(를) 삭제하시겠습니까?`)) {
+                                                            await classificationApi.deleteCategory(child.id);
+                                                            fetchCategories();
+                                                        }
+                                                    }}><Trash2 className="h-3 w-3" /></button>
+                                                </div>
                                             </div>
                                             {/* Nested Children (Level 3) */}
                                             {child.children && child.children.length > 0 && (
                                                 <ul className="pl-3 mt-1 space-y-0.5 border-l-2 border-slate-100 ml-0.5">
                                                     {child.children.map((sub: any) => (
-                                                        <li key={sub.id} className="text-[11px] text-slate-500">
-                                                            - {sub.name}
+                                                        <li key={sub.id} className="text-[11px] text-slate-500 flex justify-between group/sub">
+                                                            <span>- {sub.name}</span>
+                                                            <div className="flex gap-1 opacity-0 group-hover/sub:opacity-100">
+                                                                <button onClick={async () => {
+                                                                      if(confirm(`'${sub.name}'을(를) 삭제하시겠습니까?`)) {
+                                                                        await classificationApi.deleteCategory(sub.id);
+                                                                        fetchCategories();
+                                                                    }
+                                                                }} className="text-slate-300 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
+                                                            </div>
                                                         </li>
                                                     ))}
                                                 </ul>

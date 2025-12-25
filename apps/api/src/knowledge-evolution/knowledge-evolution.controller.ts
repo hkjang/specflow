@@ -1,4 +1,4 @@
-import { Controller, Post, Param, Get, Body } from '@nestjs/common';
+import { Controller, Post, Param, Get, Body, Patch, Delete } from '@nestjs/common';
 import { MaturityService } from './maturity.service';
 import { AssetService } from './asset.service';
 
@@ -24,5 +24,25 @@ export class KnowledgeEvolutionController {
         // Triggers ROI calc
         await this.assetService.calculateROI(id);
         return this.assetService.trackView(id); // Returns updated metric
+    }
+
+    @Get('assets')
+    async getAssets() {
+        return this.assetService.findAll();
+    }
+
+    @Post('assets')
+    async createAsset(@Body() body: any) {
+        return this.assetService.create(body);
+    }
+
+    @Patch('assets/:id')
+    async updateAsset(@Param('id') id: string, @Body() body: any) {
+        return this.assetService.update(id, body);
+    }
+
+    @Delete('assets/:id')
+    async deleteAsset(@Param('id') id: string) {
+        return this.assetService.remove(id);
     }
 }

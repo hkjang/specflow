@@ -21,6 +21,12 @@ export const knowledgeApi = {
     promoteRequirement: (id: string) => api.post(`/knowledge/maturity/${id}/promote`),
     verifyRequirement: (id: string) => api.post(`/knowledge/maturity/${id}/verify`),
     getMetrics: (id: string) => api.get(`/knowledge/assets/${id}/metrics`),
+    
+    // CRUD
+    getAssets: () => api.get('/knowledge/assets'),
+    createAsset: (data: any) => api.post('/knowledge/assets', data),
+    updateAsset: (id: string, data: any) => api.patch(`/knowledge/assets/${id}`, data),
+    deleteAsset: (id: string) => api.delete(`/knowledge/assets/${id}`),
 
     // Adaptation
     getProjectContext: (projectId: string) => api.get(`/adaptation/context/${projectId}`),
@@ -102,3 +108,5 @@ export const classificationApi = {
     autoClassify: (data: { projectId: string; providerId: string }) => api.post('/classification/auto', data),
     getStats: () => api.get('/classification/stats'),
 };
+
+

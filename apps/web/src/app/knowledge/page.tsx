@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -9,45 +9,69 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Upload, CheckCircle, FileText, Code, BookOpen, AlertCircle } from 'lucide-react';
+import { Plus, Upload, CheckCircle, FileText, Code, BookOpen, AlertCircle, Trash2, Search } from 'lucide-react';
 
 export default function KnowledgeDashboard() {
-    const [assets, setAssets] = useState([
-        { id: 1, name: 'User Authentication (OAuth2)', type: 'Code', views: 1200, adoption: 15, grade: 98, status: 'Verified', author: 'SecTeam' },
-        { id: 2, name: 'Payment Gateway Integration', type: 'Architecture', views: 850, adoption: 8, grade: 95, status: 'Standard', author: 'PayOps' },
-        { id: 3, name: 'Audit Logging Standard', type: 'Document', views: 600, adoption: 12, grade: 92, status: 'Verified', author: 'Compliance' },
-        { id: 4, name: 'S3 File Upload Module', type: 'Code', views: 540, adoption: 20, grade: 89, status: 'Draft', author: 'DevOne' },
-        { id: 5, name: 'Microservices Pattern Guide', type: 'Document', views: 2100, adoption: 45, grade: 99, status: 'Verified', author: 'ArchTeam' },
-    ]);
+    const [assets, setAssets] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [stats, setStats] = useState({
+        totalAssets: 0,
+        verifiedAssets: 0,
+        avgTrustGrade: 0,
+        estimatedROI: '$0',
+    });
 
-    // Mock Data for now as we don't have an aggregate endpoint yet
-    const stats = {
-        totalAssets: 1245,
-        verifiedAssets: 350,
-        avgTrustGrade: 78.5,
-        estimatedROI: '$1.25M',
+    useEffect(() => {
+        fetchAssets();
+    }, []);
+
+    const fetchAssets = async () => {
+        try {
+            const res = await knowledgeApi.getAssets();
+            setAssets(res.data);
+            calculateStats(res.data);
+        } catch (err) { console.error(err); }
     };
 
-    const handleUpload = (e: React.FormEvent) => {
+    const calculateStats = (data: any[]) => {
+        const verified = data.filter(a => a.grade >= 90 || a.status === 'APPROVED' || a.maturity === 'VERIFIED').length;
+        const totalTrust = data.reduce((acc, curr) => acc + (curr.trustGrade || 0), 0);
+        setStats({
+            totalAssets: data.length,
+            verifiedAssets: verified,
+            avgTrustGrade: data.length ? (totalTrust / data.length) : 0,
+            estimatedROI: 'Calculating...', // Placeholder
+        });
+    }
+
+    const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
         const form = e.target as HTMLFormElement;
-        const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+        const title = (form.elements.namedItem('name') as HTMLInputElement).value;
         const type = (form.elements.namedItem('type') as HTMLInputElement).value;
-        const author = 'Me';
+        const desc = (form.elements.namedItem('description') as HTMLTextAreaElement)?.value;
 
-        setAssets([{ 
-            id: assets.length + 1, 
-            name, 
-            type,
-            views: 0, 
-            adoption: 0, 
-            grade: 80, 
-            status: 'Draft',
-            author
-        }, ...assets]);
-        setOpen(false);
+        try {
+            await knowledgeApi.createAsset({ title, content: desc, type }); // Type mapping logic needed in backend if we want to store it separate
+            await fetchAssets();
+            setOpen(false);
+            form.reset();
+        } catch(err) { alert('등록 실패'); }
     };
+
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if(confirm('정말 삭제하시겠습니까?')) {
+            await knowledgeApi.deleteAsset(id);
+            fetchAssets();
+        }
+    };
+
+    const filteredAssets = assets.filter(a => 
+        a.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.code?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
         <div className="space-y-6 container mx-auto max-w-7xl">
@@ -109,6 +133,17 @@ export default function KnowledgeDashboard() {
                 <KpiCard title="예상 ROI" value={stats.estimatedROI} change="YTD" icon={AlertCircle} color="text-amber-600" />
             </div>
 
+            {/* Search Bar */}
+            <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input 
+                    placeholder="지식 자산 검색 (제목, 코드, 태그)..." 
+                    className="pl-9 bg-white max-w-md"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Main Table Area */}
                 <Card className="md:col-span-2 border-slate-200 shadow-sm">
@@ -124,36 +159,52 @@ export default function KnowledgeDashboard() {
                                     <TableHead>상태</TableHead>
                                     <TableHead>평가</TableHead>
                                     <TableHead className="text-right">활용도</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {assets.map((asset) => (
-                                    <TableRow key={asset.id} className="cursor-pointer hover:bg-slate-50">
+                                {filteredAssets.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-8 text-slate-400">
+                                            검색 결과가 없습니다.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {filteredAssets.map((asset) => (
+                                    <TableRow key={asset.id} className="cursor-pointer hover:bg-slate-50 group">
                                         <TableCell className="font-medium">
                                             <div className="flex flex-col">
-                                                <span>{asset.name}</span>
-                                                <span className="text-[10px] text-slate-400">by {asset.author}</span>
+                                                <span>{asset.title || asset.name}</span>
+                                                <span className="text-[10px] text-slate-400">by {asset.creator?.name || asset.author || 'Unknown'}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-1.5 text-xs text-slate-600">
                                                 {asset.type === 'Code' ? <Code className="h-3 w-3" /> : 
                                                  asset.type === 'Document' ? <FileText className="h-3 w-3" /> : <BookOpen className="h-3 w-3" />}
-                                                {asset.type}
+                                                {asset.type || 'Standard'}
                                             </div>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={asset.status === 'Verified' ? 'default' : asset.status === 'Draft' ? 'outline' : 'secondary'} className="text-[10px]">
-                                                {asset.status}
+                                                {asset.status || asset.maturity}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            <span className={`font-bold ${asset.grade >= 90 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                {asset.grade}
+                                            <span className={`font-bold ${asset.trustGrade >= 90 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                {asset.trustGrade || asset.grade || 0}
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-right text-slate-500 text-xs">
-                                            {asset.adoption}개 PJT
+                                            {asset.adoption || asset.assetMetric?.adoptionRate || 0}개 PJT
+                                        </TableCell>
+                                        <TableCell>
+                                            <button 
+                                                onClick={(e) => handleDelete(asset.id, e)}
+                                                className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
                                         </TableCell>
                                     </TableRow>
                                 ))}

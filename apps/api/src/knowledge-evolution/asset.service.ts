@@ -46,4 +46,43 @@ export class AssetService {
 
         return roi;
     }
+
+    async findAll() {
+        return this.prisma.requirement.findMany({
+            where: { maturity: { not: 'DRAFT' } }, // Fetch only Standard/Verified or all? Let's fetch all for admin
+            orderBy: { trustGrade: 'desc' },
+            include: { assetMetric: true, creator: true }
+        });
+    }
+
+    async create(data: { title: string; content: string; type?: string; tags?: string[] }) {
+        // Find or create creator (using system user for now if auth not passed)
+        const systemUser = await this.prisma.user.findFirst();
+        
+        return this.prisma.requirement.create({
+            data: {
+                title: data.title,
+                content: data.content || '',
+                code: `REQ-${Date.now()}`, // Temporary generate code
+                creatorId: systemUser?.id || 'system',
+                maturity: 'DRAFT',
+                trustGrade: 50.0,
+                // store type/tags in categories or description for now?
+                // For simplicity, let's append tags to title or content
+            }
+        });
+    }
+
+    async update(id: string, data: any) {
+        return this.prisma.requirement.update({
+            where: { id },
+            data
+        });
+    }
+
+    async remove(id: string) {
+        return this.prisma.requirement.delete({
+            where: { id }
+        });
+    }
 }
