@@ -924,3 +924,17 @@ model AgentPolicy {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model KnowledgeArticle {
+  id          String   @id @default(uuid())
+  title       String
+  content     String   @db.Text
+  category    String   // GUIDE, TUTORIAL, DOMAIN, FAQ
+  tags        String[] @default([])
+  author      String?
+  views       Int      @default(0)
+  isPublished Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

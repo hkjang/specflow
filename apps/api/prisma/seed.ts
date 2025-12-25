@@ -335,7 +335,287 @@ async function seedOperationalData() {
 
     console.log('Seeding Operational Data Completed.');
 
+    await seedExtractionJobs();
+    await seedMarketplace();
+    await seedKnowledgeBase();
     await seedAiProviders();
+}
+
+async function seedExtractionJobs() {
+    console.log('Seeding Extraction Jobs...');
+    const p = prisma as any;
+    
+    // Clean up existing
+    await p.requirementDraft.deleteMany({});
+    await p.extractionJob.deleteMany({});
+    await p.extractionSource.deleteMany({});
+    
+    // Create extraction sources (only type, content, metadata)
+    const sources = [
+        { 
+            type: 'FILE', 
+            content: '금융소비자보호법 시행령 제23조에 따라 금융상품 판매 시 적합성 원칙을 준수해야 한다. 고객의 투자성향을 파악하고 그에 맞는 상품을 권유해야 하며, 부적합한 상품 권유 시 경고를 제공해야 한다.',
+            metadata: { name: '금융감독원 규정 문서', fileName: 'financial_regulation_2024.pdf', size: 1024000 }
+        },
+        { 
+            type: 'FILE',
+            content: '배송 추적 시스템은 실시간으로 위치 정보를 제공해야 한다. GPS 기반 추적이 가능해야 하며, 배송 상태 변경 시 즉시 알림을 발송해야 한다. 일일 처리량은 최소 100만 건 이상을 지원해야 한다.',
+            metadata: { name: '물류 시스템 RFP', fileName: 'logistics_rfp_2024.docx', size: 512000 }
+        },
+        {
+            type: 'URL',
+            content: '환자 개인정보는 암호화하여 저장해야 한다. 의료 데이터 접근 시 2단계 인증을 필수로 적용한다. 진료 기록 조회 시 접근 로그를 남기고 6개월간 보관한다.',
+            metadata: { name: '의료정보 보안 가이드라인', url: 'https://hira.or.kr/security/2024' }
+        },
+        {
+            type: 'FILE',
+            content: '생산 라인 모니터링 시스템은 센서 데이터를 100ms 이내에 수집해야 한다. 이상 감지 시 즉시 알람을 발생시키고, 설비 가동 현황을 대시보드에 실시간 표시해야 한다.',
+            metadata: { name: '스마트팩토리 요구사항 정의서', fileName: 'smart_factory_spec.pdf', size: 2048000 }
+        },
+    ];
+    
+    const createdSources = [];
+    for (const s of sources) {
+        const src = await p.extractionSource.create({ data: s });
+        createdSources.push(src);
+    }
+    
+    // Create extraction jobs
+    const statuses = ['COMPLETED', 'COMPLETED', 'COMPLETED', 'PROCESSING'];
+    const models = ['gpt-4o', 'qwen3:8b', 'claude-3-opus'];
+    
+    for (let i = 0; i < createdSources.length; i++) {
+        const source = createdSources[i];
+        const status = statuses[i];
+        
+        const job = await p.extractionJob.create({
+            data: {
+                sourceId: source.id,
+                status: status,
+                progress: status === 'COMPLETED' ? 100 : 45,
+                result: status === 'COMPLETED' ? {
+                    modelName: models[i % models.length],
+                    extractedCount: 3 + Math.floor(Math.random() * 5),
+                    processingTime: 5000 + Math.floor(Math.random() * 10000)
+                } : null
+            }
+        });
+        
+        // Create drafts for completed jobs
+        if (status === 'COMPLETED') {
+            const draftStatuses = ['APPROVED', 'APPROVED', 'PENDING', 'REJECTED'];
+            const draftTitles = [
+                '적합성 원칙 준수 기능',
+                '고객 투자성향 분석',
+                '부적합 상품 경고 표시',
+                '실시간 위치 추적',
+                '배송 상태 알림 발송',
+                '센서 데이터 수집',
+                '이상 감지 알람'
+            ];
+            
+            for (let d = 0; d < 4; d++) {
+                await p.requirementDraft.create({
+                    data: {
+                        jobId: job.id,
+                        sourceId: source.id,
+                        title: draftTitles[Math.floor(Math.random() * draftTitles.length)],
+                        content: `추출된 요건 내용입니다. 원문에서 자동으로 파싱되었습니다.`,
+                        type: d % 2 === 0 ? 'Functional' : 'Non-Functional',
+                        confidence: 0.7 + Math.random() * 0.25,
+                        status: draftStatuses[d]
+                    }
+                });
+            }
+        }
+    }
+    
+    console.log('Seeding Extraction Jobs Completed.');
+}
+
+async function seedMarketplace() {
+    console.log('Seeding Marketplace...');
+    const p = prisma as any;
+    
+    // Clean up
+    await p.marketplaceItem.deleteMany({});
+    
+    const items = [
+        {
+            name: '금융권 표준 요건 템플릿 팩',
+            description: '국내 주요 금융사에서 사용하는 검증된 요건 템플릿 150개 세트입니다. 계좌 관리, 이체, 대출, 카드 등 핵심 도메인을 포함합니다.',
+            type: 'Dataset',
+            price: '₩299,000',
+            rating: 4.8,
+            downloads: 1250,
+            provider: 'SpecFlow Official'
+        },
+        {
+            name: 'AI 추출 성능 향상 프롬프트 세트',
+            description: '요건 추출 정확도를 15% 향상시키는 최적화된 프롬프트 컬렉션입니다. GPT-4, Claude 호환.',
+            type: 'Model',
+            price: '₩99,000',
+            rating: 4.5,
+            downloads: 890,
+            provider: 'AI Labs Korea'
+        },
+        {
+            name: '공공기관 SI 프로젝트 분류 체계',
+            description: '정부 및 공공기관 SI 사업에 최적화된 카테고리 분류 체계입니다. KMAC 표준 준거.',
+            type: 'Dataset',
+            price: '₩149,000',
+            rating: 4.2,
+            downloads: 456,
+            provider: '공공IT연구소'
+        },
+        {
+            name: 'IoT/스마트팩토리 도메인 사전',
+            description: '제조업 스마트팩토리 프로젝트용 용어 사전과 도메인 지식베이스입니다.',
+            type: 'Dataset',
+            price: '₩199,000',
+            rating: 4.6,
+            downloads: 234,
+            provider: '스마트제조혁신센터'
+        },
+        {
+            name: 'ISMS-P 보안 요건 체크리스트',
+            description: 'ISMS-P 인증 획득을 위한 필수 보안 요건 항목 120개와 자동 매핑 규칙입니다.',
+            type: 'API',
+            price: '₩399,000',
+            rating: 4.9,
+            downloads: 678,
+            provider: 'SecureTech Partners'
+        },
+        {
+            name: '무료 스타터 템플릿',
+            description: '소규모 프로젝트를 위한 기본 요건 템플릿 20개 세트입니다.',
+            type: 'Dataset',
+            price: 'Free',
+            rating: 4.0,
+            downloads: 5600,
+            provider: 'SpecFlow Community'
+        }
+    ];
+    
+    for (const item of items) {
+        await p.marketplaceItem.create({ data: item });
+    }
+    
+    console.log('Seeding Marketplace Completed.');
+}
+
+async function seedKnowledgeBase() {
+    console.log('Seeding Knowledge Base...');
+    const p = prisma as any;
+    
+    // Clean up
+    await p.knowledgeArticle.deleteMany({});
+    
+    const articles = [
+        {
+            title: '요건 정의 Best Practice 가이드',
+            content: `# 요건 정의 Best Practice
+
+## 1. 명확한 목적 정의
+요건은 반드시 비즈니스 목적과 연결되어야 합니다.
+
+## 2. SMART 원칙 적용
+- Specific: 구체적으로 작성
+- Measurable: 측정 가능하게 
+- Achievable: 달성 가능하게
+- Relevant: 관련성 있게
+- Time-bound: 기한 명시
+
+## 3. 이해관계자 검토
+모든 이해관계자의 검토와 승인을 받아야 합니다.`,
+            category: 'GUIDE',
+            tags: ['가이드', '요건정의', 'Best Practice'],
+            author: '김관리',
+            views: 1250,
+            isPublished: true
+        },
+        {
+            title: 'AI 추출 기능 활용법',
+            content: `# AI 추출 기능 활용법
+
+## 문서 준비
+- PDF, Word, 텍스트 파일 지원
+- 파일 크기 최대 50MB
+
+## 추출 과정
+1. 문서 업로드
+2. AI 모델 선택
+3. 추출 시작
+4. 결과 검토 및 수정
+5. 승인/반려
+
+## 팁
+- 명확한 문서일수록 정확도 향상
+- 표 형식 데이터는 자동 인식됨`,
+            category: 'TUTORIAL',
+            tags: ['AI', '추출', '튜토리얼'],
+            author: '박개발',
+            views: 980,
+            isPublished: true
+        },
+        {
+            title: '금융권 규제 요건 요약',
+            content: `# 금융권 주요 규제 요건
+
+## 금융소비자보호법
+- 적합성 원칙
+- 적정성 원칙
+- 설명의무
+- 불공정 행위 금지
+
+## 전자금융거래법
+- 이용자 보호
+- 전자금융사고 책임
+- 접근 매체 관리
+
+## ISMS-P 인증
+- 관리체계 수립
+- 보호 대책 요구사항
+- 개인정보 처리 단계별 요구사항`,
+            category: 'DOMAIN',
+            tags: ['금융', '규제', '컴플라이언스'],
+            author: '이기획',
+            views: 2100,
+            isPublished: true
+        },
+        {
+            title: '요건 품질 점수 이해하기',
+            content: `# 품질 점수 가이드
+
+## 점수 구성
+- **명확성 (Clarity)**: 모호한 표현 없음
+- **간결성 (Conciseness)**: 중복 없는 표현
+- **완전성 (Completeness)**: 필수 요소 포함
+- **정확성 (Correctness)**: 용어/문법 준수
+
+## 점수 해석
+- 90점 이상: 우수
+- 70-89점: 양호
+- 50-69점: 보통
+- 50점 미만: 개선 필요
+
+## 개선 방법
+1. AI 제안 사항 검토
+2. 템플릿 활용
+3. 피어 리뷰 진행`,
+            category: 'GUIDE',
+            tags: ['품질', '점수', '개선'],
+            author: '한품질',
+            views: 756,
+            isPublished: true
+        }
+    ];
+    
+    for (const article of articles) {
+        await p.knowledgeArticle.create({ data: article });
+    }
+    
+    console.log('Seeding Knowledge Base Completed.');
 }
 
 async function seedAiProviders() {
@@ -546,22 +826,37 @@ async function seedRequirements(prisma: any) {
     const projects = await prisma.project.findMany();
     const categories = await prisma.category.findMany();
     
-    // 0. Ensure Creator User Exists
-    const creatorId = 'sys-admin';
-    await prisma.user.upsert({
-        where: { id: creatorId },
-        update: {},
-        create: {
-            id: creatorId,
-            email: 'admin@specflow.io',
-            name: 'System Admin',
-            password: 'hashed-password-placeholder', // In real app, hash this
-            role: 'ADMIN',
-            organizationId: projects[0]?.organizationId || 'org-001' // Fallback
-        }
-    });
+    // 0. Seed Realistic Users with different roles (ADMIN, PM, PLANNER, DEVELOPER, QA)
+    const usersData = [
+        { email: 'admin@specflow.io', name: '김관리', password: 'hashed', role: 'ADMIN' },
+        { email: 'pm.kim@specflow.io', name: '김프로', password: 'hashed', role: 'PM' },
+        { email: 'pm.lee@specflow.io', name: '이기획', password: 'hashed', role: 'PLANNER' },
+        { email: 'dev.park@specflow.io', name: '박개발', password: 'hashed', role: 'DEVELOPER' },
+        { email: 'dev.choi@specflow.io', name: '최코딩', password: 'hashed', role: 'DEVELOPER' },
+        { email: 'dev.jung@specflow.io', name: '정분석', password: 'hashed', role: 'DEVELOPER' },
+        { email: 'qa.han@specflow.io', name: '한품질', password: 'hashed', role: 'QA' },
+        { email: 'qa.yoon@specflow.io', name: '윤테스트', password: 'hashed', role: 'QA' },
+        { email: 'biz.song@specflow.io', name: '송비즈', password: 'hashed', role: 'PLANNER' },
+        { email: 'system@specflow.io', name: 'System', password: 'hashed', role: 'ADMIN' },
+    ];
+    
+    const orgId = projects[0]?.organizationId || 'org-001';
+    const createdUsers: any[] = [];
+    for (const u of usersData) {
+        const user = await prisma.user.upsert({
+            where: { email: u.email },
+            update: { name: u.name },
+            create: { email: u.email, name: u.name, password: u.password, role: u.role as any, organizationId: orgId }
+        });
+        createdUsers.push(user);
+    }
+    console.log(`Created/Updated ${createdUsers.length} users.`);
+    
+    const userIds = createdUsers.map(u => u.id);
 
     console.log('Cleaning up old requirements...');
+    await prisma.requirementHistory.deleteMany({});
+    await prisma.qualityMetric.deleteMany({});
     await prisma.requirementClassification.deleteMany({});
     await prisma.aiMetadata.deleteMany({});
     await prisma.requirement.deleteMany({});
@@ -713,12 +1008,65 @@ async function seedRequirements(prisma: any) {
                 }
             });
         }
+        
+        // 3. Create Quality Metric for each requirement
+        const ambiguity = 10 + Math.random() * 40; // 10-50 (lower is better for ambiguity)
+        const redundancy = 5 + Math.random() * 35; // 5-40
+        const completenessVal = 60 + Math.random() * 40; // 60-100
+        const correctnessVal = 70 + Math.random() * 30; // 70-100
+        const overallScore = (100 - ambiguity + 100 - redundancy + completenessVal + correctnessVal) / 4;
+        
+        await prisma.qualityMetric.create({
+            data: {
+                requirementId: req.id,
+                ambiguityScore: parseFloat(ambiguity.toFixed(2)),
+                redundancyScore: parseFloat(redundancy.toFixed(2)),
+                completeness: parseFloat(completenessVal.toFixed(2)),
+                correctness: parseFloat(correctnessVal.toFixed(2)),
+                overallScore: parseFloat(overallScore.toFixed(2))
+            }
+        });
+        
+        // 4. Create Requirement History (simulate recent changes)
+        const historyActions = ['status', 'content', 'title', 'priority'];
+        const historyCount = randInt(0, 3);
+        for (let h = 0; h < historyCount; h++) {
+            const field = rand(historyActions);
+            const changer = rand(userIds);
+            const daysAgo = randInt(0, 30);
+            
+            await prisma.requirementHistory.create({
+                data: {
+                    requirementId: req.id,
+                    changerId: changer,
+                    field: field,
+                    oldValue: field === 'status' ? 'DRAFT' : null,
+                    newValue: field === 'status' ? status : null,
+                    version: 1 + h,
+                    createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+                }
+            });
+        }
 
         generatedReqs.push(req);
         if (i % 20 === 0) console.log(`Generated ${i} requirements...`);
     }
 
-    console.log(`Successfully generated ${generatedReqs.length} realistic requirements.`);
+    console.log(`Successfully generated ${generatedReqs.length} realistic requirements with quality metrics and history.`);
+    
+    // 5. Seed Admin Alerts
+    console.log('Seeding Admin Alerts...');
+    const alertsData = [
+        { title: '품질 점수 하락 경고', message: '최근 7일간 평균 품질 점수가 15% 하락했습니다.', severity: 'WARNING', isRead: false },
+        { title: '리뷰 대기 요건 증가', message: '현재 25건의 요건이 리뷰 대기 중입니다. 처리가 필요합니다.', severity: 'INFO', isRead: false },
+        { title: '중복 요건 감지', message: 'REQ-FIN-1023과 REQ-FIN-1045가 85% 유사합니다.', severity: 'WARNING', isRead: true },
+        { title: 'AI 모델 업데이트 완료', message: 'GPT-4o 모델이 활성화되었습니다.', severity: 'INFO', isRead: true },
+    ];
+    
+    for (const alert of alertsData) {
+        await prisma.adminAlert.create({ data: alert });
+    }
+    console.log('Admin Alerts seeded.');
 }
 
 main()

@@ -21,47 +21,99 @@ type NavItem = {
     actionDesc?: string; // e.g., "Define new requirements"
 };
 
-// --- USER MENU (Practitioner) ---
+// --- USER MENU (Practitioner) - Workflow-oriented ---
 const userNavItems: NavItem[] = [
-    { name: '대시보드', engName: 'Dashboard', href: '/', icon: Home, actionDesc: 'My workspace overview' },
-    { name: '요건 정의', engName: 'Requirements', href: '/requirements', icon: List, actionDesc: 'Create and manage requirements' },
-    { name: 'AI 추출', engName: 'AI Extraction', href: '/extraction', icon: Brain, actionDesc: 'Extract specs from docs' },
-    { name: '분류/태깅', engName: 'Classification', href: '/classification', icon: FileText, actionDesc: 'Tag and organize specs' },
-    { name: '사용자', engName: 'Users', href: '/users', icon: Users },
-    { name: 'AI 생성', engName: 'Generation', href: '/generation', icon: Globe, actionDesc: 'Generate content' },
-    { name: '프로젝트', engName: 'Projects', href: '/projects', icon: Folder, actionDesc: 'Manage Projects' },
-    { name: '지식 자산', engName: 'Knowledge', href: '/knowledge', icon: Library, actionDesc: 'Knowledge Base' },
+    { name: '홈', engName: 'Home', href: '/', icon: Home, actionDesc: 'My workspace overview' },
+    
+    // 요건 작업 (Core Work)
+    { 
+        name: '요건 작업', 
+        engName: 'Requirements Work', 
+        href: '/requirements', 
+        icon: FileText,
+        children: [
+            { name: '요건 목록', href: '/requirements' },
+            { name: '새 요건 작성', href: '/requirements/new' },
+            { name: '내 할당 요건', href: '/requirements?filter=assigned' },
+        ]
+    },
+    
+    // AI 도구 (AI Tools)
+    { 
+        name: 'AI 도구', 
+        engName: 'AI Tools', 
+        href: '/extraction', 
+        icon: Brain,
+        children: [
+            { name: 'AI 추출', href: '/extraction' },
+            { name: 'AI 생성', href: '/generation' },
+            { name: '분류/태깅', href: '/classification' },
+        ]
+    },
+    
+    // 협업 (Collaboration)
+    { 
+        name: '협업', 
+        engName: 'Collaboration', 
+        href: '/projects', 
+        icon: Users,
+        children: [
+            { name: '프로젝트', href: '/projects' },
+            { name: '지식 자산', href: '/knowledge' },
+            { name: '팀원 관리', href: '/users' },
+        ]
+    },
+    
+    // 마켓플레이스 & 파트너
     { name: '마켓플레이스', engName: 'Marketplace', href: '/marketplace', icon: CreditCard },
-    { name: '파트너 포털', engName: 'Partner', href: '/partner', icon: Users },
+    { name: '파트너 포털', engName: 'Partner', href: '/partner', icon: Globe },
+    
+    // 설정
     { name: '환경 설정', engName: 'Settings', href: '/settings', icon: Settings },
 ];
 
-// --- ADMIN MENU (Manager/Operator) ---
+// --- ADMIN MENU (Manager/Operator) - Role & Function oriented ---
 const adminNavItems: NavItem[] = [
+    // 1. 현황 파악 (Situation Awareness)
     {
-        name: '운영 대시보드',
-        engName: 'Admin Dashboard',
+        name: '현황 파악',
+        engName: 'Dashboard',
         href: '/admin',
         icon: LayoutDashboard,
         children: [
-            { name: '전체 현황', href: '/admin' },
+            { name: '운영 대시보드', href: '/admin' },
             { name: '추세 분석', href: '/admin/analysis' },
-            { name: '전략적 품질 (Accuracy)', href: '/dashboard/analysis/accuracy' }, // Added Strategic Platform
+            { name: '최근 활동', href: '/admin/dashboard' },
         ]
     },
+    
+    // 2. 품질 관리 (Quality Management)
+    {
+        name: '품질 관리',
+        engName: 'Quality',
+        href: '/admin/quality',
+        icon: Shield,
+        children: [
+            { name: '품질 플랫폼', href: '/admin/quality' },
+            { name: '정확도 분석', href: '/admin/quality/accuracy' },
+            { name: '빠른 검토', href: '/admin/review' },
+        ]
+    },
+    
+    // 3. 자산 관리 (Asset Management)
     {
         name: '자산 관리',
-        engName: 'Asset Management',
+        engName: 'Assets',
         href: '/admin/assets',
         icon: Library,
         children: [
             { name: '전체 요건 조회', href: '/admin/assets' },
             { name: '요건 맵 (Tree)', href: '/admin/requirements/map' },
-            { name: '지식 자산 대시보드', href: '/knowledge' }, // Added Knowledge
-            { name: '빠른 검토 (Review)', href: '/admin/review' },
-            { name: '변경 이력 (Diff)', href: '/admin/assets/diff' },
+            { name: '변경 이력', href: '/admin/assets/diff' },
         ]
     },
+    
+    // 4. 분류 체계 (Taxonomy)
     {
         name: '분류 체계',
         engName: 'Taxonomy',
@@ -69,53 +121,42 @@ const adminNavItems: NavItem[] = [
         icon: Layers,
         children: [
             { name: '분류 개요', href: '/admin/classification' },
+            { name: '카테고리 관리', href: '/admin/categories' },
             { name: '정확도 히트맵', href: '/admin/classification/heatmap' },
             { name: '미분류 처리', href: '/admin/classification/override' },
         ]
     },
+    
+    // 5. AI & 데이터 (AI & Data)
     {
-        name: 'AI 모델 관리',
-        engName: 'AI Management',
+        name: 'AI & 데이터',
+        engName: 'AI & Data',
         href: '/admin/ai',
         icon: Brain,
         children: [
-            { name: '추출 모델 설정', href: '/admin/ai/extraction' },
-            { name: '분류 모델 설정', href: '/admin/ai/classification' },
-            { name: '연동 설정 (Provider)', href: '/admin/ai-settings' },
-        ]
-    },
-    {
-        name: '데이터 수집',
-        engName: 'Data Collection',
-        href: '/admin/collection',
-        icon: Globe,
-        children: [
-            { name: '수집 소스 관리', href: '/admin/collection' },
+            { name: 'AI 모델 설정', href: '/admin/ai-settings' },
+            { name: '추출 모델', href: '/admin/ai/extraction' },
+            { name: '분류 모델', href: '/admin/ai/classification' },
+            { name: '데이터 수집', href: '/admin/collection' },
             { name: '크롤러 상태', href: '/admin/collection/crawlers' },
         ]
     },
+    
+    // 6. 거버넌스 (Governance)
     {
-        name: '마켓플레이스',
-        engName: 'Marketplace',
-        href: '/marketplace',
-        icon: CreditCard,
-        children: [
-            { name: 'API 추천', href: '/marketplace/recommendations' },
-            { name: '파트너 관리', href: '/partner' },
-        ]
-    },
-    {
-        name: '규정/SLA 관리',
+        name: '거버넌스',
         engName: 'Governance',
         href: '/admin/operations',
         icon: Activity,
         children: [
             { name: '알림/인박스', href: '/admin/operations' },
-            { name: '규칙 엔진 설정', href: '/admin/operations/rules' },
-            { name: '감사 로그 (Audit)', href: '/governance/audit-logs' }, 
-            { name: 'SLA 모니터링', href: '/admin/operations/sla' }, 
+            { name: '규칙 엔진', href: '/admin/operations/rules' },
+            { name: '감사 로그', href: '/admin/governance/audit-logs' },
+            { name: 'SLA 모니터링', href: '/admin/operations/sla' },
         ]
     },
+    
+    // 7. 시스템 설정 (System)
     {
         name: '시스템 설정',
         engName: 'System',
@@ -124,7 +165,7 @@ const adminNavItems: NavItem[] = [
         children: [
             { name: '시스템 개요', href: '/admin/settings' },
             { name: '사용자/권한', href: '/admin/settings/users' },
-            { name: '웹훅 (Webhooks)', href: '/admin/settings/webhooks' }, // Added Webhooks
+            { name: '웹훅 설정', href: '/admin/settings/webhooks' },
         ]
     },
 ];
