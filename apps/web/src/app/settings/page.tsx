@@ -33,10 +33,28 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false);
     const [formValues, setFormValues] = useState<Record<string, any>>({});
     const [activeTab, setActiveTab] = useState('general');
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
 
     useEffect(() => {
         loadSettings();
+        fetchModels();
     }, []);
+
+    const fetchModels = async () => {
+        try {
+            const res = await fetch('/api/ai/providers');
+            const providers = await res.json();
+            const allModels = providers
+                .filter((p: any) => p.isActive)
+                .flatMap((p: any) => p.models || []);
+            const uniqueModels = Array.from(new Set(allModels)) as string[];
+            setAvailableModels(uniqueModels);
+        } catch (e) {
+            console.error("Failed to fetch models", e);
+            // Fallback for settings if API fails
+            setAvailableModels(['gpt-4', 'gpt-3.5-turbo', 'claude-3-opus', 'gemini-pro']);
+        }
+    };
 
     const loadSettings = async () => {
         try {
@@ -187,10 +205,17 @@ export default function SettingsPage() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="gpt-4">GPT-4 (OpenAI)</SelectItem>
-                                        <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                                        <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                                        <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
+                                        {availableModels.length > 0 ? (
+                                            availableModels.map(model => (
+                                                <SelectItem key={model} value={model}>{model}</SelectItem>
+                                            ))
+                                        ) : (
+                                            // Fallback if empty (should normally be caught by fetchModels fallback)
+                                            <>
+                                                <SelectItem value="gpt-4">GPT-4 (OpenAI)</SelectItem>
+                                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                                            </>
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>

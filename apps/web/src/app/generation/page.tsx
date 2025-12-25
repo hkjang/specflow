@@ -52,7 +52,7 @@ export default function AutonomousAgentPage() {
     const [generatedReqs, setGeneratedReqs] = useState<any[]>([]);
 
     const [jobId, setJobId] = useState<string | null>(null);
-    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [selectedModel, setSelectedModel] = useState<string>('default');
     const [availableModels, setAvailableModels] = useState<string[]>([]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -79,14 +79,12 @@ export default function AutonomousAgentPage() {
                 // Remove duplicates and set
                 const uniqueModels = Array.from(new Set(allModels)) as string[];
                 setAvailableModels(uniqueModels);
-                if (uniqueModels.length > 0) {
-                    setSelectedModel(uniqueModels[0]);
-                }
+                
+                // Don't auto-select specific model, keep 'default' as initial
+                // Only if 'default' is somehow invalid we might want to change, but 'default' is always valid for us.
             } catch (e) {
                 console.error("Failed to fetch models", e);
-                // Fallback
                 setAvailableModels(['gpt-4', 'gpt-3.5-turbo']);
-                setSelectedModel('gpt-4');
             }
         };
         fetchModels();
@@ -116,7 +114,10 @@ export default function AutonomousAgentPage() {
             const res = await fetch('/api/agent/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goal, desiredModel: selectedModel })
+                body: JSON.stringify({ 
+                    goal, 
+                    desiredModel: selectedModel === 'default' ? undefined : selectedModel 
+                })
             });
             const job = await res.json();
             setJobId(job.id);
@@ -230,6 +231,23 @@ export default function AutonomousAgentPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">AI 모델 (AI Model)</label>
+                                <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isRunning}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Model" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default" className="text-indigo-600 font-semibold">
+                                            Default (System Setting)
+                                        </SelectItem>
+                                        {availableModels.map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-700">비즈니스 목표/요구사항</label>
                                 <Textarea 
