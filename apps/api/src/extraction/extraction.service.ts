@@ -199,29 +199,37 @@ export class ExtractionService {
         if (data.status === 'APPROVED') {
             const draft = updatedDraft;
             const code = `REQ-AUTO-${Date.now().toString(36).toUpperCase()}`;
+            // Find or use system user for auto-created requirements
+            const systemUser = await this.prisma.user.findFirst({ 
+                where: { email: 'system@specflow.ai' } 
+            }) || await this.prisma.user.findFirst();
             
-            await this.prisma.requirement.create({
-                data: {
-                    code,
-                    title: draft.title || '자동 추출 요건',
-                    content: draft.content || draft.originalText || '',
-                    type: draft.type || 'FUNCTIONAL',
-                    status: 'DRAFT',
-                    maturity: 'DRAFT',
-                    aiMetadata: {
-                        create: {
-                            modelName: 'Crawler Extraction',
-                            reasoning: `자동 추출됨. 신뢰도: ${draft.confidence ? Math.round(draft.confidence * 100) : 'N/A'}%`,
-                            sourcePath: {
-                                sourceId: draft.sourceId,
-                                originalText: draft.originalText?.slice(0, 500)
+            if (systemUser) {
+                await this.prisma.requirement.create({
+                    data: {
+                        code,
+                        title: draft.title || '자동 추출 요건',
+                        content: draft.content || draft.originalText || '',
+                        status: 'DRAFT',
+                        maturity: 'DRAFT',
+                        creator: { connect: { id: systemUser.id } },
+                        aiMetadata: {
+                            create: {
+                                modelName: 'Crawler Extraction',
+                                reasoning: `자동 추출됨. 신뢰도: ${draft.confidence ? Math.round(draft.confidence * 100) : 'N/A'}%`,
+                                sourcePath: {
+                                    sourceId: draft.sourceId,
+                                    originalText: draft.originalText?.slice(0, 500)
+                                }
                             }
                         }
                     }
-                }
-            });
-            
-            console.log(`[EXTRACTION] Created requirement ${code} from approved draft ${id}`);
+                });
+                
+                console.log(`[EXTRACTION] Created requirement ${code} from approved draft ${id}`);
+            } else {
+                console.warn(`[EXTRACTION] No system user found, skipping requirement creation for draft ${id}`);
+            }
         }
         
         return updatedDraft;
