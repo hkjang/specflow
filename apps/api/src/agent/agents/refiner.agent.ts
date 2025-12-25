@@ -8,7 +8,7 @@ export class RefinerAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, validationResult: any) {
+  async execute(jobId: string, stepId: string, validationResult: any, desiredModel?: string) {
     const data = validationResult.validatedRequirements || [];
     
     // If there were issues, potentially fix them.
@@ -34,7 +34,8 @@ export class RefinerAgent {
         const res = await this.aiManager.execute({
             messages: [{ role: 'user', content: prompt }],
             responseFormat: 'json_object',
-            temperature: 0.2
+            temperature: 0.2,
+            model: desiredModel
         }, 'GENERATION');
         
         const json = JSON.parse(res.content);

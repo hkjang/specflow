@@ -8,7 +8,7 @@ export class ContextAnalyzerAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, goalData: any) {
+  async execute(jobId: string, stepId: string, goalData: any, desiredModel?: string) {
     // Using the goal analysis result to find context
     const domain = goalData.domain || 'General';
     
@@ -37,7 +37,8 @@ export class ContextAnalyzerAgent {
         const res = await this.aiManager.execute({
             messages: [{ role: 'user', content: prompt }],
             responseFormat: 'json_object',
-            temperature: 0.2
+            temperature: 0.2,
+            model: desiredModel
         }, 'ANALYSIS');
         
         return JSON.parse(res.content);

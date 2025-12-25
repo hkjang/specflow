@@ -8,7 +8,7 @@ export class ValidatorAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, requirements: any[]) {
+  async execute(jobId: string, stepId: string, requirements: any[], desiredModel?: string) {
     const prompt = `
       You are a QA Auditor.
       Validate the following requirements for Ambiguity, Completeness, and Regulation Compliance.
@@ -34,7 +34,8 @@ export class ValidatorAgent {
         const res = await this.aiManager.execute({
             messages: [{ role: 'user', content: prompt }],
             responseFormat: 'json_object',
-            temperature: 0.1
+            temperature: 0.1,
+            model: desiredModel
         }, 'VALIDATION'); // Assuming VALIDATION model type exists or supported
         
         return JSON.parse(res.content);

@@ -8,7 +8,8 @@ import { ContextAnalyzerAgent } from './agents/context-analyzer.agent';
 import { RequirementGeneratorAgent } from './agents/requirement-generator.agent';
 import { ValidatorAgent } from './agents/validator.agent';
 import { LearningAgent } from './agents/learning.agent';
-import { PrismaService } from '../prisma.service';
+import { RefinerAgent } from './agents/refiner.agent';
+import { PrismaService } from '../prisma/prisma.service';
 import { AiModule } from '../ai/ai.module';
 
 import { RedTeamAgent } from './agents/red-team.agent';

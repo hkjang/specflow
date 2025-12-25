@@ -26,6 +26,14 @@ import {
     Wand2
 } from 'lucide-react';
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+
 type AgentStep = 'GOAL' | 'CONTEXT' | 'GENERATE' | 'VALIDATE' | 'REFINE' | 'RED_TEAM' | 'PROTOTYPE' | 'COMPLETE';
 
 interface AgentLog {
@@ -42,6 +50,11 @@ export default function AutonomousAgentPage() {
     const [currentStep, setCurrentStep] = useState<AgentStep>('GOAL');
     const [logs, setLogs] = useState<AgentLog[]>([]);
     const [generatedReqs, setGeneratedReqs] = useState<any[]>([]);
+
+    const [jobId, setJobId] = useState<string | null>(null);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -51,6 +64,33 @@ export default function AutonomousAgentPage() {
     useEffect(() => {
         scrollToBottom();
     }, [logs]);
+
+    // Fetch available models from backend
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const res = await fetch('/api/ai/providers');
+                const providers = await res.json();
+                // Aggregate all models from all active providers
+                const allModels = providers
+                    .filter((p: any) => p.isActive)
+                    .flatMap((p: any) => p.models || []);
+                
+                // Remove duplicates and set
+                const uniqueModels = Array.from(new Set(allModels)) as string[];
+                setAvailableModels(uniqueModels);
+                if (uniqueModels.length > 0) {
+                    setSelectedModel(uniqueModels[0]);
+                }
+            } catch (e) {
+                console.error("Failed to fetch models", e);
+                // Fallback
+                setAvailableModels(['gpt-4', 'gpt-3.5-turbo']);
+                setSelectedModel('gpt-4');
+            }
+        };
+        fetchModels();
+    }, []);
 
     const addLog = (step: AgentStep, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
         setLogs(prev => [...prev, {
@@ -62,82 +102,103 @@ export default function AutonomousAgentPage() {
         }]);
     };
 
-    const handleStart = () => {
+    const handleStart = async () => {
         if (!goal.trim()) return;
-        
+
         setIsRunning(true);
         setLogs([]);
         setGeneratedReqs([]);
         setCurrentStep('GOAL');
+        addLog('GOAL', `Initializing Agent Job with Model: ${selectedModel}...`, 'info');
 
-        // Simulation of Agent Pipeline V2 (Parallel + Recursive)
-        addLog('GOAL', 'Agent Job initialized (V2 Mode).', 'info');
-        
-        setTimeout(() => {
-            setCurrentStep('CONTEXT');
-            addLog('GOAL', 'Goal Manager: Intent analyzed. Domain: Finance (Smart Banking).', 'success');
-            addLog('CONTEXT', 'Context Analyzer: Retrieving globally compliant regulations...', 'info');
-        }, 1500);
+        try {
+            // 1. Create Job with Model
+            const res = await fetch('/api/agent/jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goal, desiredModel: selectedModel })
+            });
+            const job = await res.json();
+            setJobId(job.id);
+            addLog('GOAL', `Job Created: ${job.id}`, 'success');
 
-        setTimeout(() => {
-            addLog('CONTEXT', 'Context Analyzer: Context set. Spawning 3 Generators...', 'success');
-            setCurrentStep('GENERATE');
-            addLog('GENERATE', 'Generator [FUNC]: Creating core banking features...', 'info');
-            addLog('GENERATE', 'Generator [NFR]: Defining performance SLAs...', 'info');
-            addLog('GENERATE', 'Generator [SEC]: Applying ISMS-P security controls...', 'info');
-        }, 3500);
-
-        setTimeout(() => {
-            addLog('GENERATE', 'Generators: Merged 24 requirements.', 'success');
-            setCurrentStep('VALIDATE');
-            addLog('VALIDATE', 'Validator: Loop 1 - Analyzing compliance...', 'info');
-        }, 6500);
-
-        setTimeout(() => {
-            addLog('VALIDATE', 'Validator: Found 3 critical issues. Score: 78/100. Triggering Self-Correction.', 'warning');
-            setCurrentStep('REFINE');
-            addLog('REFINE', 'Refiner: Fixing ambiguity in REQ-005, REQ-008...', 'info');
-        }, 8500);
-
-        setTimeout(() => {
-            setCurrentStep('VALIDATE');
-            addLog('VALIDATE', 'Validator: Loop 2 - Re-validating...', 'info');
-        }, 10500);
-
-        setTimeout(() => {
-            addLog('VALIDATE', 'Validator: All checks passed. Score: 98/100.', 'success');
-            setCurrentStep('RED_TEAM');
-            addLog('RED_TEAM', 'Red Team: Launching "Devil\'s Advocate" Protocol...', 'warning');
-        }, 12500);
-
-        setTimeout(() => {
-            addLog('RED_TEAM', 'Red Team: SIMULATING DDOS ATTACK on Login API...', 'error');
-            addLog('RED_TEAM', 'Red Team: SIMULATING DB FAILURE...', 'error');
-            addLog('RED_TEAM', 'Red Team: Defense mechanism verified in REQ-002.', 'success');
-        }, 14500);
-
-        setTimeout(() => {
-            setCurrentStep('PROTOTYPE');
-            addLog('PROTOTYPE', 'Prototyper: Generating Prisma Schema...', 'info');
-            addLog('PROTOTYPE', 'Prototyper: Generating React Login Component...', 'info');
-            
-            // Simulating Code Generation typing effect in log
-            addLog('PROTOTYPE', '>> model User { id String @id ... }', 'info');
-            addLog('PROTOTYPE', '>> function LoginPage() { ... }', 'info');
-        }, 17500);
-
-        setTimeout(() => {
-             setCurrentStep('COMPLETE');
-             setIsRunning(false);
-             setGeneratedReqs([
-                { id: 'REQ-001', title: 'Biometric Login', content: 'Users shall login using Fingerprint/FaceID via FIDO2.', type: 'Functional', status: 'Verified' },
-                { id: 'SEC-001', title: 'Data Encryption', content: 'All PII must be AES-256 encrypted at rest.', type: 'Security', status: 'Verified' },
-                { id: 'NFR-001', title: 'Response Time', content: 'API latency must be under 200ms for 99% of requests.', type: 'Non-Functional', status: 'Verified' },
-                { id: 'PROTO-001', title: 'Prisma Schema', content: 'Top-tier DB Schema generated.', type: 'Code', status: 'Generated' },
-                { id: 'PROTO-002', title: 'Login.tsx', content: 'React Component generated.', type: 'Code', status: 'Generated' },
-            ]);
-        }, 20500);
+        } catch (e) {
+            console.error(e);
+            addLog('GOAL', 'Failed to start job.', 'error');
+            setIsRunning(false);
+        }
     };
+
+    // Polling Effect
+    useEffect(() => {
+        if (!isRunning || !jobId) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/agent/jobs/${jobId}`);
+                const job = await res.json();
+
+                // Process Steps to Logs
+                if (job.steps) {
+                    const newLogs: AgentLog[] = job.steps.map((s: any) => {
+                        let step: AgentStep = 'GOAL';
+                        // Map backend Action/Type to Frontend Step
+                        if (s.action.includes('Goal')) step = 'GOAL';
+                        else if (s.action.includes('Context')) step = 'CONTEXT';
+                        else if (s.action.includes('Generate')) step = 'GENERATE';
+                        else if (s.action.includes('Validate')) step = 'VALIDATE';
+                        else if (s.action.includes('Refine')) step = 'REFINE';
+                        else if (s.action.includes('Red Team')) step = 'RED_TEAM';
+                        else if (s.action.includes('Prototyping')) step = 'PROTOTYPE';
+
+                        // Set Current Step if Running
+                        if (s.status === 'RUNNING') setCurrentStep(step);
+
+                        return {
+                            id: s.id,
+                            step: step,
+                            message: `${s.agentType}: ${s.action} - ${s.status}`,
+                            timestamp: new Date(s.startedAt),
+                            type: s.status === 'FAILED' ? 'error' : s.status === 'SUCCESS' ? 'success' : 'info'
+                        };
+                    });
+                    
+                    // Deduplicate logs or just verify (simplification: just set logs)
+                    // In real app, merge logs. For now, simple replace is okay if list is small.
+                    // But to keep scrolling nice, maybe just replace.
+                    setLogs(newLogs);
+                }
+
+                // Check Completion
+                if (job.status === 'COMPLETED') {
+                    setIsRunning(false);
+                    setCurrentStep('COMPLETE');
+                    clearInterval(interval);
+                    
+                    if (job.result && job.result.requirements) {
+                         // Simplify result display mapping
+                         const reqs = Array.isArray(job.result.requirements) ? job.result.requirements : [];
+                         setGeneratedReqs(reqs.map((r: any, i: number) => ({
+                             id: `REQ-${i}`,
+                             title: r.title || 'Requirement',
+                             content: r.content || JSON.stringify(r),
+                             type: r.category || 'Functional',
+                             status: 'Verified'
+                         })));
+                    }
+                } else if (job.status === 'FAILED') {
+                     setIsRunning(false);
+                     clearInterval(interval);
+                     addLog('COMPLETE', 'Job Failed.', 'error');
+                }
+
+            } catch (e) {
+                console.error('Polling error', e);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isRunning, jobId]);
 
     return (
         <div className="h-full flex flex-col p-6 space-y-6 max-w-[1600px] mx-auto">

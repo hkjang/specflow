@@ -8,7 +8,7 @@ export class PrototyperAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, requirements: any[]) {
+  async execute(jobId: string, stepId: string, requirements: any[], desiredModel?: string) {
     const prompt = `
       You are an Elite Full-Stack Developer.
       Instantly convert these requirements into "Simulated Code Snippets".
@@ -30,7 +30,8 @@ export class PrototyperAgent {
         const res = await this.aiManager.execute({
             messages: [{ role: 'user', content: prompt }],
             responseFormat: 'json_object',
-            temperature: 0.1
+            temperature: 0.1,
+            model: desiredModel
         }, 'GENERATION');
         
         return JSON.parse(res.content);

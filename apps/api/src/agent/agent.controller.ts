@@ -1,7 +1,7 @@
 
 import { Controller, Post, Body, Get, Param, NotFoundException } from '@nestjs/common';
 import { AgentOrchestrator } from './agent.orchestrator';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('agent')
 export class AgentController {
@@ -11,8 +11,8 @@ export class AgentController {
   ) {}
 
   @Post('jobs')
-  async createJob(@Body() body: { goal: string, userId?: string }) {
-    const job = await this.orchestrator.createJob(body.goal, body.userId || 'system');
+  async createJob(@Body() body: { goal: string, userId?: string, desiredModel?: string }) {
+    const job = await this.orchestrator.createJob(body.goal, body.userId || 'system', body.desiredModel);
     // Auto-start for now
     this.orchestrator.startJob(job.id);
     return job;

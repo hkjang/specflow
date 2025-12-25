@@ -26,8 +26,8 @@ export class GoalManagerAgent {
     };
   }
 
-  // Updated signature to accept goalText
-  async analyze(goalText: string) {
+  // Updated signature to accept goalText and desiredModel
+  async analyze(goalText: string, desiredModel?: string) {
       const prompt = `
         Analyze the following business goal for a software project.
         
@@ -54,7 +54,8 @@ export class GoalManagerAgent {
           const res = await this.aiManager.execute({
               messages: [{ role: 'user', content: prompt }],
               responseFormat: 'json_object',
-              temperature: 0.1
+              temperature: 0.1,
+              model: desiredModel
           }, 'ANALYSIS'); // Using ANALYSIS model if available, or default
           
           const result = JSON.parse(res.content);

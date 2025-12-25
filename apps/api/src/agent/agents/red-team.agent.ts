@@ -8,7 +8,7 @@ export class RedTeamAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, requirements: any[]) {
+  async execute(jobId: string, stepId: string, requirements: any[], desiredModel?: string) {
     const prompt = `
       You are a Red Team Security & Architecture Expert.
       Your goal is to BREAK the system defined by these requirements.
@@ -39,7 +39,8 @@ export class RedTeamAgent {
         const res = await this.aiManager.execute({
             messages: [{ role: 'user', content: prompt }],
             responseFormat: 'json_object',
-            temperature: 0.7 // Higher temp for creative attacks
+            temperature: 0.7, // Higher temp for creative attacks
+            model: desiredModel
         }, 'ANALYSIS');
         
         const json = JSON.parse(res.content);

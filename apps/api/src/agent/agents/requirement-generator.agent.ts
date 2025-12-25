@@ -8,7 +8,7 @@ export class RequirementGeneratorAgent {
 
   constructor(private readonly aiManager: AiProviderManager) {}
 
-  async execute(jobId: string, stepId: string, goalData: any, contextData: any, type: 'FUNC' | 'NFR' | 'SEC' = 'FUNC') {
+  async execute(jobId: string, stepId: string, goalData: any, contextData: any, type: 'FUNC' | 'NFR' | 'SEC' = 'FUNC', desiredModel?: string) {
     const typeFull = type === 'FUNC' ? 'Functional' : type === 'NFR' ? 'Non-Functional' : 'Security';
     
     const prompt = `

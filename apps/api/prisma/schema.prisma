@@ -820,6 +820,7 @@ model AgentJob {
   
   context     Json?    // Captured context from ContextAnalyzer
   result      Json?    // Final output (e.g. Generated Requirements)
+  desiredModel String? // User selected model ID (e.g. "gpt-4")
   
   creatorId   String?
   // creator     User?    @relation(fields: [creatorId], references: [id]) // Optional link to user

@@ -1,6 +1,6 @@
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { AgentJobStatus, AgentStepStatus, AgentType } from '@prisma/client';
 import { GovernanceService } from './governance.service';
 import { GoalManagerAgent } from './agents/goal-manager.agent';
@@ -26,16 +26,16 @@ export class AgentOrchestrator {
     private readonly refiner: RefinerAgent,
     private readonly redTeam: RedTeamAgent,
     private readonly prototyper: PrototyperAgent,
-    private readonly learning: LearningAgent,
   ) {}
 
-  async createJob(goal: string, userId: string) {
-    this.logger.log(`Creating new agent job for goal: ${goal}`);
+  async createJob(goal: string, userId: string, desiredModel?: string) {
+    this.logger.log(`Creating new agent job for goal: ${goal} with model: ${desiredModel}`);
     return this.prisma.agentJob.create({
       data: {
         goal,
         status: AgentJobStatus.PENDING,
         creatorId: userId,
+        desiredModel,
       },
     });
   }
@@ -64,12 +64,12 @@ export class AgentOrchestrator {
 
     // 1. Goal Manager
     const goalStep = await this.createStep(jobId, AgentType.GOAL_MANAGER, 1, 'Analyze Goal');
-    const goalResult = await this.goalManager.analyze(job.goal); // Use analyze() with job.goal
+    const goalResult = await this.goalManager.analyze(job.goal, job.desiredModel ?? undefined); // Pass model
     await this.completeStep(goalStep.id, goalResult);
 
     // 2. Context Analyzer
     const contextStep = await this.createStep(jobId, AgentType.CONTEXT_ANALYZER, 2, 'Analyze Context');
-    const contextResult = await this.contextAnalyzer.execute(jobId, contextStep.id, goalResult);
+    const contextResult = await this.contextAnalyzer.execute(jobId, contextStep.id, goalResult, job.desiredModel ?? undefined); // Pass model
     await this.completeStep(contextStep.id, contextResult);
     
     // Save Context
@@ -82,9 +82,9 @@ export class AgentOrchestrator {
     const genStepSec = await this.createStep(jobId, AgentType.GENERATOR, 3, 'Generate Security Req');
 
     const [funcRes, nfrRes, secRes] = await Promise.all([
-        this.generator.execute(jobId, genStepFunc.id, goalResult, contextResult, 'FUNC'),
-        this.generator.execute(jobId, genStepNfr.id, goalResult, contextResult, 'NFR'),
-        this.generator.execute(jobId, genStepSec.id, goalResult, contextResult, 'SEC')
+        this.generator.execute(jobId, genStepFunc.id, goalResult, contextResult, 'FUNC', job.desiredModel ?? undefined), // Pass model
+        this.generator.execute(jobId, genStepNfr.id, goalResult, contextResult, 'NFR', job.desiredModel ?? undefined), // Pass model
+        this.generator.execute(jobId, genStepSec.id, goalResult, contextResult, 'SEC', job.desiredModel ?? undefined) // Pass model
     ]);
 
     await this.completeStep(genStepFunc.id, funcRes);
@@ -103,7 +103,7 @@ export class AgentOrchestrator {
         
         // Validate
         const valStep = await this.createStep(jobId, AgentType.VALIDATOR, 4, `Validate Requirements (Loop ${loopCount})`);
-        const valResult = await this.validator.execute(jobId, valStep.id, allRequirements);
+        const valResult = await this.validator.execute(jobId, valStep.id, allRequirements, job.desiredModel ?? undefined); // Pass model
         await this.completeStep(valStep.id, valResult);
 
         if (valResult.overallScore >= 90) {
@@ -114,7 +114,7 @@ export class AgentOrchestrator {
 
         // Refine (Self-Correction)
         const refStep = await this.createStep(jobId, AgentType.REFINER, 5, `Refine & Fix Issues (Loop ${loopCount})`);
-        const refResult = await this.refiner.execute(jobId, refStep.id, valResult);
+        const refResult = await this.refiner.execute(jobId, refStep.id, valResult, job.desiredModel ?? undefined); // Pass model
         await this.completeStep(refStep.id, refResult);
         
         allRequirements = refResult; // Use refined requirements for next validation
@@ -123,13 +123,13 @@ export class AgentOrchestrator {
 
     // 5. Red Team Attack (The Critic)
     const redStep = await this.createStep(jobId, AgentType.VALIDATOR, 6, 'Red Team Attack Simulation');
-    const redResult = await this.redTeam.execute(jobId, redStep.id, allRequirements);
+    const redResult = await this.redTeam.execute(jobId, redStep.id, allRequirements, job.desiredModel ?? undefined); // Pass model
     await this.completeStep(redStep.id, redResult);
 
     // 6. Prototyper (The Builder)
     // Only if reliable requirement set is found
     const protoStep = await this.createStep(jobId, AgentType.GENERATOR, 7, 'Instant Prototyping (Schema & UI)');
-    const protoResult = await this.prototyper.execute(jobId, protoStep.id, allRequirements);
+    const protoResult = await this.prototyper.execute(jobId, protoStep.id, allRequirements, job.desiredModel ?? undefined); // Pass model
     await this.completeStep(protoStep.id, protoResult);
 
     // 7. Learning
