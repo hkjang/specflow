@@ -9,7 +9,8 @@ import { RequirementGeneratorAgent } from './agents/requirement-generator.agent'
 import { ValidatorAgent } from './agents/validator.agent';
 import { RefinerAgent } from './agents/refiner.agent';
 
-import { LearningAgent } from './agents/learning.agent';
+import { RedTeamAgent } from './agents/red-team.agent';
+import { PrototyperAgent } from './agents/prototyper.agent';
 
 @Injectable()
 export class AgentOrchestrator {
@@ -23,6 +24,8 @@ export class AgentOrchestrator {
     private readonly generator: RequirementGeneratorAgent,
     private readonly validator: ValidatorAgent,
     private readonly refiner: RefinerAgent,
+    private readonly redTeam: RedTeamAgent,
+    private readonly prototyper: PrototyperAgent,
     private readonly learning: LearningAgent,
   ) {}
 
@@ -117,7 +120,19 @@ export class AgentOrchestrator {
         allRequirements = refResult; // Use refined requirements for next validation
     }
 
-    // 6. Learning
+
+    // 5. Red Team Attack (The Critic)
+    const redStep = await this.createStep(jobId, AgentType.VALIDATOR, 6, 'Red Team Attack Simulation');
+    const redResult = await this.redTeam.execute(jobId, redStep.id, allRequirements);
+    await this.completeStep(redStep.id, redResult);
+
+    // 6. Prototyper (The Builder)
+    // Only if reliable requirement set is found
+    const protoStep = await this.createStep(jobId, AgentType.GENERATOR, 7, 'Instant Prototyping (Schema & UI)');
+    const protoResult = await this.prototyper.execute(jobId, protoStep.id, allRequirements);
+    await this.completeStep(protoStep.id, protoResult);
+
+    // 7. Learning
     // await this.learning.processFeedback(jobId, ...); 
 
     await this.prisma.agentJob.update({
@@ -125,7 +140,11 @@ export class AgentOrchestrator {
         data: { 
             status: AgentJobStatus.COMPLETED, 
             completedAt: new Date(),
-            result: allRequirements
+            result: {
+                requirements: allRequirements,
+                attacks: redResult,
+                prototype: protoResult
+            }
         }
     });
   }

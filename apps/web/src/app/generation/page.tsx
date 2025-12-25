@@ -26,7 +26,7 @@ import {
     Wand2
 } from 'lucide-react';
 
-type AgentStep = 'GOAL' | 'CONTEXT' | 'GENERATE' | 'VALIDATE' | 'REFINE' | 'COMPLETE';
+type AgentStep = 'GOAL' | 'CONTEXT' | 'GENERATE' | 'VALIDATE' | 'REFINE' | 'RED_TEAM' | 'PROTOTYPE' | 'COMPLETE';
 
 interface AgentLog {
     id: number;
@@ -106,14 +106,37 @@ export default function AutonomousAgentPage() {
 
         setTimeout(() => {
             addLog('VALIDATE', 'Validator: All checks passed. Score: 98/100.', 'success');
-            setCurrentStep('COMPLETE');
-            setIsRunning(false);
-            setGeneratedReqs([
+            setCurrentStep('RED_TEAM');
+            addLog('RED_TEAM', 'Red Team: Launching "Devil\'s Advocate" Protocol...', 'warning');
+        }, 12500);
+
+        setTimeout(() => {
+            addLog('RED_TEAM', 'Red Team: SIMULATING DDOS ATTACK on Login API...', 'error');
+            addLog('RED_TEAM', 'Red Team: SIMULATING DB FAILURE...', 'error');
+            addLog('RED_TEAM', 'Red Team: Defense mechanism verified in REQ-002.', 'success');
+        }, 14500);
+
+        setTimeout(() => {
+            setCurrentStep('PROTOTYPE');
+            addLog('PROTOTYPE', 'Prototyper: Generating Prisma Schema...', 'info');
+            addLog('PROTOTYPE', 'Prototyper: Generating React Login Component...', 'info');
+            
+            // Simulating Code Generation typing effect in log
+            addLog('PROTOTYPE', '>> model User { id String @id ... }', 'info');
+            addLog('PROTOTYPE', '>> function LoginPage() { ... }', 'info');
+        }, 17500);
+
+        setTimeout(() => {
+             setCurrentStep('COMPLETE');
+             setIsRunning(false);
+             setGeneratedReqs([
                 { id: 'REQ-001', title: 'Biometric Login', content: 'Users shall login using Fingerprint/FaceID via FIDO2.', type: 'Functional', status: 'Verified' },
                 { id: 'SEC-001', title: 'Data Encryption', content: 'All PII must be AES-256 encrypted at rest.', type: 'Security', status: 'Verified' },
                 { id: 'NFR-001', title: 'Response Time', content: 'API latency must be under 200ms for 99% of requests.', type: 'Non-Functional', status: 'Verified' },
+                { id: 'PROTO-001', title: 'Prisma Schema', content: 'Top-tier DB Schema generated.', type: 'Code', status: 'Generated' },
+                { id: 'PROTO-002', title: 'Login.tsx', content: 'React Component generated.', type: 'Code', status: 'Generated' },
             ]);
-        }, 12500);
+        }, 20500);
     };
 
     return (

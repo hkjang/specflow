@@ -11,9 +11,12 @@ import { LearningAgent } from './agents/learning.agent';
 import { PrismaService } from '../prisma.service';
 import { AiModule } from '../ai/ai.module';
 
+import { RedTeamAgent } from './agents/red-team.agent';
+import { PrototyperAgent } from './agents/prototyper.agent';
+
 @Module({
   controllers: [AgentController],
-  imports: [AiModule], // Import AiModule
+  imports: [AiModule], 
   providers: [
     AgentOrchestrator,
     GovernanceService,
@@ -22,7 +25,9 @@ import { AiModule } from '../ai/ai.module';
     RequirementGeneratorAgent,
     ValidatorAgent,
     RefinerAgent,
-    LearningAgent, // Add LearningAgent
+    RedTeamAgent, // New
+    PrototyperAgent, // New
+    LearningAgent,
     PrismaService
   ],
   exports: [AgentOrchestrator],
