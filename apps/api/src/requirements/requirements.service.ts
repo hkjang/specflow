@@ -150,6 +150,7 @@ export class RequirementsService {
           classifications: {
              include: { category: true }
           },
+          aiMetadata: true,
           qualityMetric: true,
         }
       }),

@@ -55,13 +55,15 @@ export class AiInferenceService {
                 drafts = [parsed];
             }
 
-            return { drafts };
+            // Include model name from response
+            const modelName = response.modelUsed || 'AI Model';
+            return { drafts, modelName };
 
         } catch (error) {
             this.logger.error('AI Inference Failed:', error);
             // Fallback or rethrow? 
             // Return empty to avoid crashing the job
-            return { drafts: [] };
+            return { drafts: [], modelName: 'Unknown' };
         }
     }
 }

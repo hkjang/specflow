@@ -96,11 +96,11 @@ export class ExtractionService {
             include: { source: true }
         });
         
-        // Get AI provider info from the job or default
+        // Get AI provider info from the job result (stored during extraction)
         let modelName = 'AI Extraction';
-        if (job?.source?.metadata) {
-            const meta = job.source.metadata as any;
-            modelName = meta.modelName || meta.provider || 'AI Extraction';
+        if (job?.result) {
+            const result = job.result as any;
+            modelName = result.modelName || 'AI Extraction';
         }
 
         // 2. Get all APPROVED drafts for this job

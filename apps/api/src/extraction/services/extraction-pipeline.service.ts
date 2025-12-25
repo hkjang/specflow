@@ -65,7 +65,7 @@ export class ExtractionPipelineService {
                 data: {
                     status: 'COMPLETED',
                     progress: 100,
-                    result: result as any
+                    result: { ...result, modelName: result.modelName } as any
                 }
             });
 
