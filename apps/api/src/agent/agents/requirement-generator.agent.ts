@@ -21,6 +21,7 @@ export class RequirementGeneratorAgent {
       Instructions:
       1. Return a JSON Object with a "requirements" array.
       2. Each requirement MUST have: "title", "content", "priority".
+      3. **IMPORTANT**: All content (Title, Content, Rationale) MUST be written in **Korean** (한국어).
       
       Example Output:
       {

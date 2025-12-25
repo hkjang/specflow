@@ -22,7 +22,7 @@ export class RefinerAgent {
       Instructions:
       1. Ensure consistent terminology.
       2. Format as professional Software Requirement Specifications (SRS).
-      3. Translate any non-Korean parts to Korean if the context implies Korean output (Goal was Korean).
+      3. **IMPORTANT**: Translate everything to **Korean** (한국어) naturally.
       
       Output JSON:
       {

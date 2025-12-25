@@ -153,6 +153,34 @@ export class AgentOrchestrator {
     });
   }
 
+  async mergeToRequirements(jobId: string, projectId?: string) {
+      const job = await this.prisma.agentJob.findUnique({ where: { id: jobId } });
+      if (!job || job.status !== AgentJobStatus.COMPLETED || !job.result) {
+          throw new Error('Job not completed or invalid');
+      }
+
+      const result = job.result as any;
+      const reqs = result.requirements || [];
+      
+      const createdReqs = [];
+
+      for (const req of reqs) {
+          // Create Requirement
+          const newReq = await this.prisma.requirement.create({
+              data: {
+                  code: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // temporary code
+                  title: req.title,
+                  content: req.content,
+                  status: 'DRAFT',
+                  creatorId: job.creatorId || 'system', // Fallback to 'system' if null
+              }
+          });
+          createdReqs.push(newReq);
+      }
+
+      return createdReqs;
+  }
+
   private async createStep(jobId: string, type: AgentType, order: number, action: string) {
     return this.prisma.agentStep.create({
       data: {

@@ -322,7 +322,7 @@ export default function AutonomousAgentPage() {
                     <Card className="flex-1 border-slate-200 shadow-md">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle>2. 생성 결과 (Generated Requirements)</CardTitle>
-                            {generatedReqs.length > 0 && <Button size="sm" variant="outline">엑셀 다운로드</Button>}
+                            {generatedReqs.length > 0 && <Button size="sm" variant="outline" onClick={() => downloadExcel(generatedReqs)}>엑셀 다운로드</Button>}
                         </CardHeader>
                         <CardContent className="p-0">
                             {generatedReqs.length === 0 ? (
@@ -352,8 +352,19 @@ export default function AutonomousAgentPage() {
                         </CardContent>
                         {generatedReqs.length > 0 && (
                             <CardFooter className="bg-slate-50 border-t p-4 flex justify-end gap-2">
-                                <Button variant="outline">재생성 (Retry)</Button>
-                                <Button className="bg-emerald-600 hover:bg-emerald-700">프로젝트에 반영 (Approve & Merge)</Button>
+                                <Button variant="outline" onClick={handleStart}>재생성 (Retry)</Button>
+                                <Button 
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    onClick={async () => {
+                                        if(!jobId) return;
+                                        try {
+                                            await fetch(`/api/agent/jobs/${jobId}/merge`, { method: 'POST' });
+                                            alert('프로젝트 요건으로 반영되었습니다!');
+                                        } catch(e) {
+                                            alert('반영 실패');
+                                        }
+                                    }}
+                                >프로젝트에 반영 (Approve & Merge)</Button>
                             </CardFooter>
                         )}
                     </Card>
@@ -361,6 +372,22 @@ export default function AutonomousAgentPage() {
             </div>
         </div>
     );
+}
+
+// Helper for Excel Download (Call this function from a button)
+import * as XLSX from 'xlsx';
+
+function downloadExcel(reqs: any[]) {
+    const ws = XLSX.utils.json_to_sheet(reqs.map(r => ({
+        ID: r.id,
+        Title: r.title,
+        Type: r.type,
+        Content: r.content,
+        Status: r.status
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Requirements");
+    XLSX.writeFile(wb, "Agent_Requirements.xlsx");
 }
 
 function AgentNode({ icon: Icon, label, active, status }: { icon: any, label: string, active: boolean, status: 'pending' | 'active' | 'done' }) {
