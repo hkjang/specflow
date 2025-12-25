@@ -28,6 +28,11 @@ export class AgentController {
     return job;
   }
 
+  @Post('jobs/:id/merge')
+  async mergeJob(@Param('id') id: string) {
+      return this.orchestrator.mergeToRequirements(id);
+  }
+
   @Get('jobs')
   async listJobs() {
     return this.prisma.agentJob.findMany({

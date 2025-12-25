@@ -44,4 +44,9 @@ export class ClassificationController {
   override(@Body() body: { requirementId: string; categoryIds: string[] }) {
     return this.classificationService.overrideClassification(body.requirementId, body.categoryIds);
   }
+
+  @Post('auto')
+  autoClassify(@Body() body: { content: string }) {
+      return this.classificationService.classifyRequirement(body.content);
+  }
 }
