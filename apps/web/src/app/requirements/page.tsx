@@ -1,69 +1,153 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Plus } from 'lucide-react';
+import { Plus, Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TrustBadge } from '@/components/requirements/TrustBadge';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+
+// Debounce Hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function RequirementsPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // State
     const [requirements, setRequirements] = useState<any[]>([]);
+    const [total, setTotal] = useState(0);
+    const [loading, setLoading] = useState(false);
+
+    // Filters & Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState('ALL');
+    
+    // Debounced Search
+    const debouncedSearch = useDebounce(search, 500);
+
+    // Initial Load & Params Sync usually handled here, 
+    // but for simplicity we'll drive from state -> effect -> fetch
 
     useEffect(() => {
         fetchReqs();
-    }, []);
+    }, [page, limit, debouncedSearch, status]);
 
     const fetchReqs = async () => {
         try {
-            const res = await api.get('/requirements');
-            // Backend returns { data: [], total: ... }
-            const reqData = res.data.data || res.data; 
-            setRequirements(Array.isArray(reqData) ? reqData : []);
+            setLoading(true);
+            const params: any = { page, limit };
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (status !== 'ALL') params.status = status;
+
+            const res = await api.get('/requirements', { params });
+            // Backend returns { data: [], total: number, page: number, limit: number }
+            setRequirements(res.data.data || []);
+            setTotal(res.data.total || 0);
         } catch (err) {
             console.error(err);
+        } finally {
+            setLoading(false);
         }
     };
 
+    const maxPages = Math.ceil(total / limit) || 1;
+
+    // Handlers
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        setPage(1); // Reset to page 1 on search
+    };
+
+    const handleStatusChange = (val: string) => {
+        setStatus(val);
+        setPage(1);
+    };
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 container mx-auto max-w-7xl animate-in fade-in duration-500">
             <PageHeader
                 title="요건 정의 및 관리"
                 description="비즈니스 요구사항을 등록하고 AI로 분석하여 명확한 기술 요건으로 발전시킵니다."
                 steps={['워크스페이스', '요건 정의']}
             />
 
-            <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                    {/* Filters placeholders */}
-                    <button className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 rounded hover:bg-slate-200">
-                        전체 보기
-                    </button>
-                    <button className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 rounded">
-                        검토 필요 (3)
-                    </button>
+            {/* Toolbar */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-lg border shadow-sm">
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="relative w-full md:w-72">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input 
+                            placeholder="코드, 제목, 내용 검색..." 
+                            className="pl-9"
+                            value={search}
+                            onChange={handleSearchChange}
+                        />
+                    </div>
+                    <Select value={status} onValueChange={handleStatusChange}>
+                        <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="상태 (Status)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">전체 상태</SelectItem>
+                            <SelectItem value="DRAFT">DRAFT</SelectItem>
+                            <SelectItem value="REVIEW">REVIEW</SelectItem>
+                            <SelectItem value="APPROVED">APPROVED</SelectItem>
+                            <SelectItem value="DEPRECATED">DEPRECATED</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                <Link href="/requirements/new" className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition-all hover:shadow-md">
-                    <Plus className="h-4 w-4" /> 신규 요건 등록
-                </Link>
+                <div className="flex items-center gap-2">
+                    <div className="text-sm text-slate-500 mr-2">
+                        Total <span className="font-bold text-slate-800">{total}</span> items
+                    </div>
+                    <Link href="/requirements/new">
+                        <Button className="bg-blue-600 hover:bg-blue-700">
+                            <Plus className="mr-2 h-4 w-4" /> 신규 등록
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
-            <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+            {/* Table */}
+            <div className="rounded-lg border bg-white shadow-sm overflow-hidden relative min-h-[400px]">
+                {loading && (
+                    <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    </div>
+                )}
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                         <tr>
                             <th className="px-5 py-4 font-bold w-[120px]">코드 (Code)</th>
                             <th className="px-5 py-4 font-bold">요건 명 / 내용 미리보기</th>
                             <th className="px-5 py-4 font-bold w-[150px]">신뢰도 (Trust)</th>
+                            <th className="px-5 py-4 font-bold w-[120px]">상태</th>
                             <th className="px-5 py-4 font-bold w-[120px]">분류</th>
-                            <th className="px-5 py-4 font-bold w-[120px]">최종 수정일</th>
+                            <th className="px-5 py-4 font-bold w-[150px]">최종 수정일</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {Array.isArray(requirements) && requirements.map((req) => (
+                        {requirements.map((req) => (
                             <tr 
                                 key={req.id} 
                                 className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
@@ -78,9 +162,18 @@ export default function RequirementsPage() {
                                 </td>
                                 <td className="px-5 py-4">
                                     <TrustBadge
-                                        score={req.trustScore?.overallScore || 0}
-                                        status={req.maturity || 'DRAFT'} // Mapping maturity to status visual
+                                        score={req.trustScore?.totalScore || req.trustGrade || 0}
+                                        status={req.maturity || 'DRAFT'}
                                     />
+                                </td>
+                                <td className="px-5 py-4">
+                                    <Badge variant="outline" className={
+                                        req.status === 'APPROVED' ? 'bg-green-50 text-green-600 border-green-200' :
+                                        req.status === 'REVIEW' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                        'bg-slate-50 text-slate-500'
+                                    }>
+                                        {req.status}
+                                    </Badge>
                                 </td>
                                 <td className="px-5 py-4 text-xs font-medium text-slate-600">
                                     {req.business?.name || <span className="text-slate-300">-</span>}
@@ -90,17 +183,66 @@ export default function RequirementsPage() {
                                 </td>
                             </tr>
                         ))}
-                        {requirements.length === 0 && (
+                        {!loading && requirements.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
-                                    등록된 요건이 없습니다. '신규 요건 등록' 버튼을 눌러 시작하세요.
+                                <td colSpan={6} className="px-4 py-20 text-center text-slate-400">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Filter className="h-8 w-8 text-slate-200" />
+                                        <p>검색 결과가 없습니다.</p>
+                                    </div>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-500">
+                    Showing {requirements.length > 0 ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, total)} of {total} entries
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPage(1)}
+                        disabled={page === 1}
+                    >
+                        <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="flex items-center gap-1 px-2">
+                        <span className="text-sm font-medium">Page {page}</span>
+                        <span className="text-sm text-slate-400">/ {maxPages}</span>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPage(p => Math.min(maxPages, p + 1))}
+                        disabled={page === maxPages}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPage(maxPages)}
+                        disabled={page === maxPages}
+                    >
+                        <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 }
-
