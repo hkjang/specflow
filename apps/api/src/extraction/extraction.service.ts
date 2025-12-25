@@ -26,6 +26,13 @@ export class ExtractionService {
         });
     }
 
+    async ingestText(content: string, projectId: string, perspective?: string) {
+        return this.ingestionService.createSource('TEXT', content, {
+            projectId,
+            perspective: perspective || 'BUSINESS'
+        });
+    }
+
     async startProcessing(sourceId: string) {
         return this.pipelineService.startExtraction(sourceId);
     }
@@ -33,7 +40,10 @@ export class ExtractionService {
     async getJobStatus(id: string) {
         const job = await this.prisma.extractionJob.findUnique({
             where: { id },
-            include: { drafts: true }
+            include: { 
+                drafts: true,
+                source: true // Include source to get content
+            }
         });
 
         if (!job) return null;
@@ -41,7 +51,11 @@ export class ExtractionService {
         // Run dynamic QA on fetch (Optimization: Store in DB later)
         const qaIssues = this.qaService.analyzeDrafts(job.drafts);
 
-        return { ...job, qaIssues };
+        return { 
+            ...job, 
+            sourceText: job.source.content, // Map for frontend
+            qaIssues 
+        };
     }
 
     async mergeDraft(draftId: string, projectId: string) {
@@ -73,6 +87,67 @@ export class ExtractionService {
         });
 
         return requirement;
+    }
+
+    async mergeJob(jobId: string) {
+        // 1. Get all APPROVED drafts for this job
+        const drafts = await this.prisma.requirementDraft.findMany({
+            where: { jobId, status: 'APPROVED' }
+        });
+
+        if (drafts.length === 0) {
+            throw new Error('No approved drafts to merge');
+        }
+
+        // Ensure a valid creatorId exists
+        let creatorId = 'mock-user-id';
+        const systemUser = await this.prisma.user.findFirst();
+        if (systemUser) {
+            creatorId = systemUser.id;
+        } else {
+            // Create a default system user if none exists (Dev environment fallback)
+            const newUser = await this.prisma.user.create({
+                data: {
+                    email: 'system@specflow.io',
+                    name: 'System Admin',
+                    password: 'system_password_placeholder', 
+                    role: 'ADMIN'
+                }
+            });
+            creatorId = newUser.id;
+        }
+
+        const createdRequirements = [];
+
+        // 2. Convert to Requirements
+        for (const draft of drafts) {
+            const req = await this.prisma.requirement.create({
+                data: {
+                    code: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Unique code
+                    title: draft.title || 'Untitled',
+                    content: draft.content || '',
+                    creatorId: creatorId, 
+                    sourceId: draft.sourceId,
+                    status: 'DRAFT', // Initial status
+                }
+            });
+            createdRequirements.push(req);
+
+            // 3. Mark draft as MERGED
+            await this.prisma.requirementDraft.update({
+                where: { id: draft.id },
+                data: { status: 'MERGED' }
+            });
+        }
+
+        return { message: `Merged ${createdRequirements.length} requirements`, requirements: createdRequirements };
+    }
+
+    async updateDraftStatus(id: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) {
+        return this.prisma.requirementDraft.update({
+            where: { id },
+            data
+        });
     }
 
     async getAllJobs() {

@@ -111,7 +111,7 @@ export const extractionApi = {
     getJob: (id: string) => api.get(`/extraction/jobs/${id}`),
     getAllJobs: () => api.get('/extraction/jobs'),
     deleteJob: (id: string) => api.delete(`/extraction/jobs/${id}`),
-    updateDraft: (draftId: string, status: 'APPROVED' | 'REJECTED') => api.patch(`/extraction/drafts/${draftId}`, { status }),
+    updateDraft: (draftId: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) => api.patch(`/extraction/drafts/${draftId}`, data),
     mergeJob: (jobId: string) => api.post(`/extraction/jobs/${jobId}/merge`),
 };
 

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UploadedFile, UseInterceptors, Get, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, UploadedFile, UseInterceptors, Get, Param, Delete, Patch } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExtractionService } from './extraction.service';
 
@@ -16,9 +16,9 @@ export class ExtractionController {
             const source = await this.extractionService.ingestFile(file, body.projectId, body.perspective);
 
             // Start Processing (Async)
-            this.extractionService.startProcessing(source.id);
+            const job = await this.extractionService.startProcessing(source.id);
 
-            return { message: 'File uploaded and processing started', sourceId: source.id };
+            return { message: 'File uploaded and processing started', sourceId: source.id, jobId: job?.id };
         } catch (e) {
             console.error('Upload Failed:', e);
             throw e; // Use Filter or let it bubble, but console.error helps if I could read it
@@ -28,9 +28,23 @@ export class ExtractionController {
     }
 
     @Post('text')
-    async submitText(@Body() body: { text: string; projectId: string }) {
-        // TODO: allow direct text input
-        return { message: 'Text received' };
+    async submitText(@Body() body: { content: string; projectId: string; perspective?: string }) {
+        if (!body.content) throw new Error('No content provided');
+
+        // Ingestion
+        const source = await this.extractionService.ingestText(body.content, body.projectId, body.perspective);
+
+        // Start Processing (Async)
+        const job = await this.extractionService.startProcessing(source.id);
+
+        return { message: 'Text received and processing started', jobId: job?.id, sourceId: source.id };
+        // Note: ingestionService.createSource returns source. We might need to fetch the job ID if it's created there?
+        // Actually pipelineService creates the job. 
+        // Wait, startProcessing returns nothing? 
+        // In file upload, we return sourceId. The frontend then polls or redirects.
+        // Frontend expects `res.data.jobId`.
+        // Let's modify startProcessing to return the job, or wait for it.
+        // It's async.
     }
 
     @Get('jobs/:id')
@@ -41,6 +55,16 @@ export class ExtractionController {
     @Post('drafts/:id/merge')
     async mergeDraft(@Param('id') id: string, @Body() body: { projectId: string }) {
         return this.extractionService.mergeDraft(id, body.projectId);
+    }
+
+    @Post('jobs/:id/merge')
+    async mergeJob(@Param('id') id: string) {
+        return this.extractionService.mergeJob(id);
+    }
+
+    @Patch('drafts/:id')
+    async updateDraft(@Param('id') id: string, @Body() body: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) {
+        return this.extractionService.updateDraftStatus(id, body);
     }
 
     @Get('jobs')

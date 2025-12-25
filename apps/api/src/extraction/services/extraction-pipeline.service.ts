@@ -33,7 +33,7 @@ export class ExtractionPipelineService {
         if (projectId) {
             // Find Business -> Project relation or however requirements are linked. 
             // Requirements link to Business, Function, Menu.
-            // For simplicity, we might need a way to find Requirements by Project ID.
+            // For simplicity, we might need to find Requirements by Project ID.
             // Since Schema has Requirement -> Business -> Project, we can query.
 
             const existingReqs = await this.prisma.requirement.findMany({
@@ -50,10 +50,13 @@ export class ExtractionPipelineService {
             }
         }
 
-        this.processJob(job.id, source.content, context, perspective);
+        // Run async but don't await the full process so we return quickly
+        this.processJob(job.id, source.id, source.content, context, perspective);
+
+        return job;
     }
 
-    private async processJob(jobId: string, content: string, context: string, perspective: 'BUSINESS' | 'DEVELOPER') {
+    private async processJob(jobId: string, sourceId: string, content: string, context: string, perspective: 'BUSINESS' | 'DEVELOPER') {
         try {
             const result = await this.aiService.extractRequirements(content, context, perspective);
 
@@ -71,7 +74,7 @@ export class ExtractionPipelineService {
                 await this.prisma.requirementDraft.createMany({
                     data: result.drafts.map((d: any) => ({
                         jobId: jobId,
-                        sourceId: (d.sourceId) || undefined, // Logic to pass sourceId needed
+                        sourceId: sourceId,
                         title: d.title,
                         content: d.content,
                         type: d.type,

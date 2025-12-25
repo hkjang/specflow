@@ -16,6 +16,8 @@ export class AiInferenceService {
             Analyze the following text and extract software requirements.
             Format the output as a JSON array of objects with keys: title, content, type (Functional, Non-Functional, Security), confidence (0-1).
             
+            IMPORTANT: The 'title' and 'content' fields MUST be written in Korean.
+            
             Perspective: ${perspective}
             Instruction: ${roleInstruction}
             
@@ -34,9 +36,26 @@ export class AiInferenceService {
             }, 'REQUIREMENT_EXTRACTION');
 
             const rawResult = response.content;
-            const parsed = JSON.parse(rawResult || '{"requirements": []}');
+            this.logger.debug(`Raw AI Response: ${rawResult}`);
 
-            return { drafts: parsed.requirements || [] };
+            const parsed = JSON.parse(rawResult || '{"requirements": []}');
+            this.logger.debug(`Parsed Requirements: ${JSON.stringify(parsed)}`);
+
+            // Handle potential schema mismatch (some LLMs might wrap it in 'data' or top-level array)
+            // Also handle case where AI returns a single object instead of an array
+            let drafts: any[] = [];
+            if (Array.isArray(parsed)) {
+                drafts = parsed;
+            } else if (parsed.requirements && Array.isArray(parsed.requirements)) {
+                drafts = parsed.requirements;
+            } else if (parsed.drafts && Array.isArray(parsed.drafts)) {
+                drafts = parsed.drafts;
+            } else if (parsed.title && parsed.content) {
+                // Single object fallback
+                drafts = [parsed];
+            }
+
+            return { drafts };
 
         } catch (error) {
             this.logger.error('AI Inference Failed:', error);
