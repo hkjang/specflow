@@ -1,0 +1,47 @@
+
+import { Injectable, Logger } from '@nestjs/common';
+import { AiProviderManager } from '../../ai/provider/ai-provider.manager';
+
+@Injectable()
+export class RefinerAgent {
+  private readonly logger = new Logger(RefinerAgent.name);
+
+  constructor(private readonly aiManager: AiProviderManager) {}
+
+  async execute(jobId: string, stepId: string, validationResult: any) {
+    const data = validationResult.validatedRequirements || [];
+    
+    // If there were issues, potentially fix them.
+    // For now, let's just "Polish" the text.
+    
+    const prompt = `
+      Refine the following requirements to be 'Developer Ready'.
+      
+      Input: ${JSON.stringify(data)}
+      
+      Instructions:
+      1. Ensure consistent terminology.
+      2. Format as professional Software Requirement Specifications (SRS).
+      3. Translate any non-Korean parts to Korean if the context implies Korean output (Goal was Korean).
+      
+      Output JSON:
+      {
+          "refinedRequirements": [ ... ]
+      }
+    `;
+
+    try {
+        const res = await this.aiManager.execute({
+            messages: [{ role: 'user', content: prompt }],
+            responseFormat: 'json_object',
+            temperature: 0.2
+        }, 'GENERATION');
+        
+        const json = JSON.parse(res.content);
+        return json.refinedRequirements || data;
+    } catch (e) {
+        this.logger.error('Refinement failed', e);
+        return data; 
+    }
+  }
+}

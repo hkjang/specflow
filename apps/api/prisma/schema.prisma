@@ -785,3 +785,84 @@ model AccuracyFeedback {
   reviewerId  String?
   timestamp   DateTime @default(now())
 }
+
+// --- Autonomous Agents: Phase 9 (Strategic) ---
+
+enum AgentJobStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentStepStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum AgentType {
+  GOAL_MANAGER
+  CONTEXT_ANALYZER
+  GENERATOR
+  VALIDATOR
+  REFINER
+}
+
+model AgentJob {
+  id          String   @id @default(uuid())
+  goal        String   @db.Text
+  status      AgentJobStatus @default(PENDING)
+  
+  context     Json?    // Captured context from ContextAnalyzer
+  result      Json?    // Final output (e.g. Generated Requirements)
+  
+  creatorId   String?
+  // creator     User?    @relation(fields: [creatorId], references: [id]) // Optional link to user
+  
+  steps       AgentStep[]
+  
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AgentStep {
+  id          String   @id @default(uuid())
+  jobId       String
+  job         AgentJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  agentType   AgentType
+  order       Int
+  action      String   // Description of what is being done
+  
+  input       Json?
+  output      Json?
+  
+  status      AgentStepStatus @default(PENDING)
+  error       String?
+  
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model AgentPolicy {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  
+  maxSteps    Int      @default(50)
+  maxTokens   Int      @default(100000)
+  requiredApprovals String[] // List of AgentTypes that require human approval
+  
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

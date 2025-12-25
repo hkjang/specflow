@@ -22,6 +22,7 @@ import { DevModule } from './dev/dev.module';
 import { ExternalApiModule } from './product/product.module';
 import { GovernanceModule } from './governance/governance.module';
 import { EnterpriseModule } from './enterprise/enterprise.module';
+import { AgentModule } from './agent/agent.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { EnterpriseModule } from './enterprise/enterprise.module';
     ExplanationModule,
     GovernanceModule,
     EnterpriseModule,
+    AgentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

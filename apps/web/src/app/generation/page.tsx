@@ -1,141 +1,288 @@
+
 'use client';
 
-import React, { useState } from 'react';
-import { knowledgeApi } from '@/lib/api';
+import React, { useState, useEffect, useRef } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { 
+    Cpu, 
+    Bot, 
+    CheckCircle2, 
+    Loader2, 
+    BrainCircuit, 
+    ShieldCheck, 
+    FileText, 
+    ArrowRight, 
+    PauseCircle, 
+    PlayCircle,
+    Search,
+    Database,
+    Wand2
+} from 'lucide-react';
 
-type ArtifactType = 'ARCHITECTURE' | 'UI' | 'API' | 'TEST';
+type AgentStep = 'GOAL' | 'CONTEXT' | 'GENERATE' | 'VALIDATE' | 'REFINE' | 'COMPLETE';
 
-export default function ArtifactGenerationPage() {
-    const [projectId, setProjectId] = useState('project-123'); // Default for demo
-    const [selectedType, setSelectedType] = useState<ArtifactType>('ARCHITECTURE');
-    const [generatedContent, setGeneratedContent] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
+interface AgentLog {
+    id: number;
+    step: AgentStep;
+    message: string;
+    timestamp: Date;
+    type: 'info' | 'success' | 'warning' | 'error';
+}
 
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        setGeneratedContent('');
-        try {
-            const res = await knowledgeApi.generateArtifact(projectId, selectedType);
-            setGeneratedContent(res.data.content || JSON.stringify(res.data, null, 2));
-        } catch (e) {
-            console.error(e);
-            setGeneratedContent('아티팩트 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
-        } finally {
-            setIsGenerating(false);
-        }
+export default function AutonomousAgentPage() {
+    const [goal, setGoal] = useState('');
+    const [isRunning, setIsRunning] = useState(false);
+    const [currentStep, setCurrentStep] = useState<AgentStep>('GOAL');
+    const [logs, setLogs] = useState<AgentLog[]>([]);
+    const [generatedReqs, setGeneratedReqs] = useState<any[]>([]);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [logs]);
+
+    const addLog = (step: AgentStep, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+        setLogs(prev => [...prev, {
+            id: Date.now(),
+            step,
+            message,
+            timestamp: new Date(),
+            type
+        }]);
+    };
+
+    const handleStart = () => {
+        if (!goal.trim()) return;
+        
+        setIsRunning(true);
+        setLogs([]);
+        setGeneratedReqs([]);
+        setCurrentStep('GOAL');
+
+        // Simulation of Agent Pipeline V2 (Parallel + Recursive)
+        addLog('GOAL', 'Agent Job initialized (V2 Mode).', 'info');
+        
+        setTimeout(() => {
+            setCurrentStep('CONTEXT');
+            addLog('GOAL', 'Goal Manager: Intent analyzed. Domain: Finance (Smart Banking).', 'success');
+            addLog('CONTEXT', 'Context Analyzer: Retrieving globally compliant regulations...', 'info');
+        }, 1500);
+
+        setTimeout(() => {
+            addLog('CONTEXT', 'Context Analyzer: Context set. Spawning 3 Generators...', 'success');
+            setCurrentStep('GENERATE');
+            addLog('GENERATE', 'Generator [FUNC]: Creating core banking features...', 'info');
+            addLog('GENERATE', 'Generator [NFR]: Defining performance SLAs...', 'info');
+            addLog('GENERATE', 'Generator [SEC]: Applying ISMS-P security controls...', 'info');
+        }, 3500);
+
+        setTimeout(() => {
+            addLog('GENERATE', 'Generators: Merged 24 requirements.', 'success');
+            setCurrentStep('VALIDATE');
+            addLog('VALIDATE', 'Validator: Loop 1 - Analyzing compliance...', 'info');
+        }, 6500);
+
+        setTimeout(() => {
+            addLog('VALIDATE', 'Validator: Found 3 critical issues. Score: 78/100. Triggering Self-Correction.', 'warning');
+            setCurrentStep('REFINE');
+            addLog('REFINE', 'Refiner: Fixing ambiguity in REQ-005, REQ-008...', 'info');
+        }, 8500);
+
+        setTimeout(() => {
+            setCurrentStep('VALIDATE');
+            addLog('VALIDATE', 'Validator: Loop 2 - Re-validating...', 'info');
+        }, 10500);
+
+        setTimeout(() => {
+            addLog('VALIDATE', 'Validator: All checks passed. Score: 98/100.', 'success');
+            setCurrentStep('COMPLETE');
+            setIsRunning(false);
+            setGeneratedReqs([
+                { id: 'REQ-001', title: 'Biometric Login', content: 'Users shall login using Fingerprint/FaceID via FIDO2.', type: 'Functional', status: 'Verified' },
+                { id: 'SEC-001', title: 'Data Encryption', content: 'All PII must be AES-256 encrypted at rest.', type: 'Security', status: 'Verified' },
+                { id: 'NFR-001', title: 'Response Time', content: 'API latency must be under 200ms for 99% of requests.', type: 'Non-Functional', status: 'Verified' },
+            ]);
+        }, 12500);
     };
 
     return (
-        <div className="space-y-6 p-8 h-screen flex flex-col box-border overflow-hidden">
+        <div className="h-full flex flex-col p-6 space-y-6 max-w-[1600px] mx-auto">
             <PageHeader
-                title="산출물 생성기 (Artifact Generator)"
-                description="요건을 기반으로 실행 가능한 산출물(설계, UI, API, 테스트 등)을 자동 생성합니다."
-                badgeText="GENERATOR"
+                title="자율 요건 생성 에이전트 (Autonomous Requirement Agents)"
+                description="목표를 입력하면 AI 에이전트 팀이 협업하여 요건을 스스로 탐색, 생성, 검증합니다."
+                badgeText="ORGANIZATIONAL INTELLIGENCE"
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1 min-h-0">
-                {/* Controls Sidebar */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-fit">
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">대상 프로젝트 (Target Project)</label>
-                            <input
-                                type="text"
-                                value={projectId}
-                                onChange={(e) => setProjectId(e.target.value)}
-                                className="w-full p-2 border border-slate-300 rounded-md"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">산출물 유형 (Artifact Type)</label>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+                {/* Left Panel: Input & Status */}
+                <div className="lg:col-span-4 flex flex-col gap-6">
+                    <Card className="border-indigo-100 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Bot className="h-5 w-5 text-indigo-600" />
+                                1. 목표 설정 (Goal)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <ArtifactOption
-                                    type="ARCHITECTURE"
-                                    label="아키텍처 설계 (Architecture)"
-                                    desc="시스템 컴포넌트 및 데이터 흐름"
-                                    selected={selectedType === 'ARCHITECTURE'}
-                                    onClick={() => setSelectedType('ARCHITECTURE')}
-                                />
-                                <ArtifactOption
-                                    type="UI"
-                                    label="UI/UX 정의 (UI Definition)"
-                                    desc="화면 레이아웃 및 인터랙션"
-                                    selected={selectedType === 'UI'}
-                                    onClick={() => setSelectedType('UI')}
-                                />
-                                <ArtifactOption
-                                    type="API"
-                                    label="API 명세 (API Spec)"
-                                    desc="OpenAPI/Swagger 명세서"
-                                    selected={selectedType === 'API'}
-                                    onClick={() => setSelectedType('API')}
-                                />
-                                <ArtifactOption
-                                    type="TEST"
-                                    label="테스트 케이스 (Test Cases)"
-                                    desc="Gherkin/Jest 테스트 시나리오"
-                                    selected={selectedType === 'TEST'}
-                                    onClick={() => setSelectedType('TEST')}
+                                <label className="text-sm font-medium text-slate-700">비즈니스 목표/요구사항</label>
+                                <Textarea 
+                                    placeholder="예: 우리 은행 앱에 새로운 '비대면 계좌 개설' 기능을 추가하고 싶어. 금융소비자보호법을 준수해야 하고, 신분증 진위확인 시스템과 연동되어야 해."
+                                    className="min-h-[150px] resize-none focus:ring-indigo-500"
+                                    value={goal}
+                                    onChange={(e) => setGoal(e.target.value)}
+                                    disabled={isRunning}
                                 />
                             </div>
-                        </div>
+                            <Button 
+                                className={`w-full h-12 text-lg font-bold gap-2 ${isRunning ? 'bg-slate-100 text-slate-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-200'}`}
+                                onClick={handleStart}
+                                disabled={isRunning || !goal.trim()}
+                            >
+                                {isRunning ? <Loader2 className="animate-spin" /> : <Wand2 className="h-5 w-5" />}
+                                {isRunning ? '에이전트 실행 중...' : '자율 생성 시작 (Start Agents)'}
+                            </Button>
+                        </CardContent>
+                    </Card>
 
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating}
-                            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-md font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-70 flex justify-center items-center"
-                        >
-                            {isGenerating ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    AI 생성 중... (Thinking)
-                                </>
-                            ) : (
-                                '산출물 생성 (Generate)'
-                            )}
-                        </button>
-                    </div>
+                    <Card className="flex-1 border-slate-200 flex flex-col min-h-[300px]">
+                        <CardHeader className="py-3 px-4 bg-slate-50 border-b">
+                            <CardTitle className="text-sm flex items-center justify-between">
+                                <span className="flex items-center gap-2"><Cpu className="h-4 w-4" /> Agent Thinking Log</span>
+                                {isRunning && <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0 flex-1 overflow-hidden relative">
+                            <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 font-mono text-xs">
+                                {logs.length === 0 && <div className="text-slate-400 text-center py-10">대기 중...</div>}
+                                {logs.map((log) => (
+                                    <div key={log.id} className="flex gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                        <span className="text-slate-400 shrink-0">[{log.timestamp.toLocaleTimeString().split(' ')[0]}]</span>
+                                        <div className="flex-1">
+                                            <span className={`font-bold mr-2 ${
+                                                log.step === 'GOAL' ? 'text-blue-600' :
+                                                log.step === 'CONTEXT' ? 'text-amber-600' :
+                                                log.step === 'GENERATE' ? 'text-purple-600' :
+                                                log.step === 'VALIDATE' ? 'text-red-500' :
+                                                log.step === 'REFINE' ? 'text-emerald-600' : 'text-slate-600'
+                                            }`}>[{log.step}]</span>
+                                            <span className={log.type === 'error' ? 'text-red-600' : 'text-slate-700'}>{log.message}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Output Area */}
-                <div className="lg:col-span-3 bg-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden flex flex-col max-h-full">
-                    <div className="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-                        <span className="text-slate-300 text-sm font-mono">Output Preview</span>
-                        {generatedContent && (
-                            <button className="text-xs text-indigo-400 hover:text-indigo-300">클립보드 복사</button>
-                        )}
-                    </div>
-                    <div className="flex-1 overflow-auto p-6 min-h-0">
-                        {generatedContent ? (
-                            <pre className="text-green-400 font-mono text-sm whitespace-pre-wrap">{generatedContent}</pre>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-600">
-                                <p>유형을 선택하고 '산출물 생성' 버튼을 클릭하세요.</p>
+                {/* Right Panel: Agent Visualizer & Result */}
+                <div className="lg:col-span-8 flex flex-col gap-6">
+                    {/* Agent Pipeline Visualizer */}
+                    <Card className="border-slate-200 bg-slate-900 text-white overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center relative">
+                                {/* Connecting Line */}
+                                <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-700 -z-0"></div>
+                                <div className={`absolute top-1/2 left-0 h-1 bg-indigo-500 transition-all duration-1000 -z-0`} 
+                                     style={{ width: currentStep === 'COMPLETE' ? '100%' : currentStep === 'REFINE' ? '80%' : currentStep === 'VALIDATE' ? '60%' : currentStep === 'GENERATE' ? '40%' : currentStep === 'CONTEXT' ? '20%' : '0%' }} 
+                                />
+
+                                <AgentNode 
+                                    icon={Search} label="Goal Manager" 
+                                    active={currentStep === 'GOAL'} status={['GOAL', 'CONTEXT', 'GENERATE', 'VALIDATE', 'REFINE', 'COMPLETE'].indexOf(currentStep) > 0 ? 'done' : currentStep === 'GOAL' ? 'active' : 'pending'} 
+                                />
+                                <AgentNode 
+                                    icon={Database} label="Context Analyzer" 
+                                    active={currentStep === 'CONTEXT'} status={['CONTEXT', 'GENERATE', 'VALIDATE', 'REFINE', 'COMPLETE'].indexOf(currentStep) > 0 ? 'done' : currentStep === 'CONTEXT' ? 'active' : 'pending'} 
+                                />
+                                <AgentNode 
+                                    icon={BrainCircuit} label="Generator" 
+                                    active={currentStep === 'GENERATE'} status={['GENERATE', 'VALIDATE', 'REFINE', 'COMPLETE'].indexOf(currentStep) > 0 ? 'done' : currentStep === 'GENERATE' ? 'active' : 'pending'} 
+                                />
+                                <AgentNode 
+                                    icon={ShieldCheck} label="Validator" 
+                                    active={currentStep === 'VALIDATE'} status={['VALIDATE', 'REFINE', 'COMPLETE'].indexOf(currentStep) > 0 ? 'done' : currentStep === 'VALIDATE' ? 'active' : 'pending'} 
+                                />
+                                <AgentNode 
+                                    icon={CheckCircle2} label="Refiner" 
+                                    active={currentStep === 'REFINE'} status={['REFINE', 'COMPLETE'].indexOf(currentStep) > 0 ? 'done' : currentStep === 'REFINE' ? 'active' : 'pending'} 
+                                />
                             </div>
+                        </div>
+                    </Card>
+
+                    {/* Result Area */}
+                    <Card className="flex-1 border-slate-200 shadow-md">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle>2. 생성 결과 (Generated Requirements)</CardTitle>
+                            {generatedReqs.length > 0 && <Button size="sm" variant="outline">엑셀 다운로드</Button>}
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {generatedReqs.length === 0 ? (
+                                <div className="h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                                    <FileText className="h-10 w-10 mb-2 opacity-20" />
+                                    <p>요건이 생성되면 이곳에 표시됩니다.</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {generatedReqs.map((req, idx) => (
+                                        <div key={idx} className="p-4 hover:bg-slate-50 transition-colors group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{req.id}</span>
+                                                    <h4 className="font-bold text-slate-900">{req.title}</h4>
+                                                </div>
+                                                <Badge variant="outline" className={
+                                                    req.type === 'Security' ? 'border-red-200 text-red-700 bg-red-50' : 
+                                                    req.type === 'Functional' ? 'border-blue-200 text-blue-700 bg-blue-50' : 'border-slate-200 text-slate-700'
+                                                }>{req.type}</Badge>
+                                            </div>
+                                            <p className="text-sm text-slate-600 leading-relaxed">{req.content}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                        {generatedReqs.length > 0 && (
+                            <CardFooter className="bg-slate-50 border-t p-4 flex justify-end gap-2">
+                                <Button variant="outline">재생성 (Retry)</Button>
+                                <Button className="bg-emerald-600 hover:bg-emerald-700">프로젝트에 반영 (Approve & Merge)</Button>
+                            </CardFooter>
                         )}
-                    </div>
+                    </Card>
                 </div>
             </div>
         </div>
     );
 }
 
-function ArtifactOption({ type, label, desc, selected, onClick }: any) {
+function AgentNode({ icon: Icon, label, active, status }: { icon: any, label: string, active: boolean, status: 'pending' | 'active' | 'done' }) {
     return (
-        <div
-            onClick={onClick}
-            className={`p-3 rounded-lg cursor-pointer border transition-all ${selected
-                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500'
-                : 'bg-white border-slate-200 hover:border-indigo-300'
-                }`}
-        >
-            <div className="font-medium text-slate-800 text-sm">{label}</div>
-            <div className="text-xs text-slate-500">{desc}</div>
+        <div className={`relative z-10 flex flex-col items-center gap-2 transition-all duration-500 transform ${active ? 'scale-110' : 'scale-100'}`}>
+            <div className={`
+                h-12 w-12 rounded-full flex items-center justify-center border-4 shadow-xl transition-all duration-500
+                ${status === 'done' ? 'bg-indigo-500 border-indigo-600 text-white' : 
+                  status === 'active' ? 'bg-white border-indigo-500 text-indigo-600 animate-pulse ring-4 ring-indigo-500/20' : 
+                  'bg-slate-800 border-slate-600 text-slate-500'}
+            `}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <span className={`text-xs font-bold transition-colors duration-300 ${status === 'pending' ? 'text-slate-500' : 'text-white'}`}>
+                {label}
+            </span>
+            {status === 'active' && <span className="absolute -bottom-5 text-[10px] text-indigo-300 animate-bounce">Processing...</span>}
         </div>
     );
 }
