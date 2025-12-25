@@ -10,6 +10,7 @@ import Link from "next/link";
 
 interface Activity {
     id: string;
+    requirementId: string | null;
     title: string;
     code: string;
     action: string;
@@ -111,16 +112,20 @@ export default function Home() {
                                 <div className="h-32 flex items-center justify-center text-slate-400">최근 활동이 없습니다.</div>
                             ) : (
                                 activities.map((activity) => (
-                                    <div key={activity.id} className="flex gap-3 pb-3 border-b border-slate-50 last:border-0 last:pb-0">
+                                    <Link
+                                        key={activity.id}
+                                        href={activity.requirementId ? `/requirements/${activity.requirementId}` : '#'}
+                                        className="flex gap-3 pb-3 border-b border-slate-50 last:border-0 last:pb-0 hover:bg-slate-50 rounded p-2 -m-2 transition-colors"
+                                    >
                                         <div className="mt-1 h-2 w-2 rounded-full bg-blue-400 flex-shrink-0" />
                                         <div className="flex-1">
-                                            <p className="text-sm font-medium text-slate-700">{activity.title}</p>
+                                            <p className="text-sm font-medium text-slate-700 hover:text-blue-600">{activity.title}</p>
                                             <p className="text-xs text-slate-400 mt-0.5">
                                                 {formatTime(activity.timestamp)} • {activity.user}
                                             </p>
                                         </div>
                                         <Badge variant="outline" className="h-fit text-xs">{activity.code}</Badge>
-                                    </div>
+                                    </Link>
                                 ))
                             )}
                         </div>
@@ -143,8 +148,12 @@ export default function Home() {
                                     const total = progress.statusDistribution.reduce((a, b) => a + b.count, 0);
                                     const percent = total > 0 ? Math.round((item.count / total) * 100) : 0;
                                     return (
-                                        <div key={item.status} className="flex items-center gap-3">
-                                            <span className="text-xs font-medium text-slate-600 w-20">{item.status}</span>
+                                        <Link
+                                            key={item.status}
+                                            href={`/requirements?status=${item.status}`}
+                                            className="flex items-center gap-3 hover:bg-slate-50 rounded p-2 -m-2 transition-colors cursor-pointer"
+                                        >
+                                            <span className="text-xs font-medium text-slate-600 w-20 hover:text-blue-600">{item.status}</span>
                                             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full ${statusColors[item.status] || 'bg-slate-400'} transition-all`}
@@ -152,7 +161,7 @@ export default function Home() {
                                                 />
                                             </div>
                                             <span className="text-xs text-slate-500 w-12 text-right">{item.count}건</span>
-                                        </div>
+                                        </Link>
                                     );
                                 })}
                             </div>

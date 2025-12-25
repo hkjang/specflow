@@ -39,8 +39,8 @@ export class DashboardService {
         // Stats for a specific practitioner
         const assignedCount = await this.prisma.requirement.count({
             where: {
-                 // Use creatorId based on schema
-                 creatorId: userId
+                // Use creatorId based on schema
+                creatorId: userId
             }
         });
 
@@ -60,8 +60,8 @@ export class DashboardService {
 
         // "Today's Activity" - simplified as changes made by user today
         const startOfDay = new Date();
-        startOfDay.setHours(0,0,0,0);
-        
+        startOfDay.setHours(0, 0, 0, 0);
+
         const activityCount = await this.prisma.requirementHistory.count({
             where: {
                 changerId: userId,
@@ -226,6 +226,7 @@ export class DashboardService {
         return activities.map(a => ({
             id: a.id,
             type: 'requirement_change',
+            requirementId: a.requirement?.id || null,
             title: a.requirement?.title || 'Unknown',
             code: a.requirement?.code || '',
             action: a.field || 'UPDATED',

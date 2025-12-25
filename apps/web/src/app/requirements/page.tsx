@@ -42,17 +42,22 @@ export default function RequirementsPage() {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const [search, setSearch] = useState('');
-    const [status, setStatus] = useState('ALL');
+    const [status, setStatus] = useState(searchParams.get('status') || 'ALL');
     const [category, setCategory] = useState<string | null>(searchParams.get('category'));
 
     // Debounced Search
     const debouncedSearch = useDebounce(search, 500);
 
-    // Sync category from URL on mount and URL change
+    // Sync filters from URL on mount and URL change
     useEffect(() => {
         const catParam = searchParams.get('category');
+        const statusParam = searchParams.get('status');
+
         if (catParam !== category) {
             setCategory(catParam);
+        }
+        if (statusParam && statusParam !== status) {
+            setStatus(statusParam);
         }
     }, [searchParams]);
 

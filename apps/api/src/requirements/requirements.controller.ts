@@ -3,12 +3,14 @@ import { RequirementsService } from './requirements.service';
 import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
 import { RequirementEnrichmentService } from './requirement-enrichment.service';
+import { DuplicateDetectionService } from './duplicate-detection.service';
 
 @Controller('requirements')
 export class RequirementsController {
   constructor(
     private readonly requirementsService: RequirementsService,
-    private readonly enrichmentService: RequirementEnrichmentService
+    private readonly enrichmentService: RequirementEnrichmentService,
+    private readonly duplicateService: DuplicateDetectionService
   ) { }
 
   @Post()
@@ -53,6 +55,23 @@ export class RequirementsController {
     return this.enrichmentService.enrichRequirement(id);
   }
   // --- End AI Enrichment ---
+
+  // --- Duplicate Detection Endpoints ---
+  @Get('duplicates/scan')
+  scanDuplicates() {
+    return this.duplicateService.scanExistingDuplicates(false);
+  }
+
+  @Post('duplicates/deprecate')
+  deprecateDuplicates() {
+    return this.duplicateService.scanExistingDuplicates(true);
+  }
+
+  @Get('duplicates/compare/:id1/:id2')
+  compareTwoRequirements(@Param('id1') id1: string, @Param('id2') id2: string) {
+    return this.duplicateService.getSimilarityDetails(id1, id2);
+  }
+  // --- End Duplicate Detection ---
 
   @Get(':id')
   findOne(@Param('id') id: string) {
