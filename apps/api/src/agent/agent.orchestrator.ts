@@ -159,6 +159,33 @@ export class AgentOrchestrator {
           throw new Error('Job not completed or invalid');
       }
 
+      // Ensure valid creatorId
+      let creatorId = job.creatorId;
+      if (!creatorId || creatorId === 'system') {
+          // Find first Admin or create a system user stub
+          const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' } });
+          if (admin) {
+              creatorId = admin.id;
+          } else {
+              // Fallback: Check if ANY User exists, otherwise create one
+              const anyUser = await this.prisma.user.findFirst();
+              if (anyUser) {
+                  creatorId = anyUser.id;
+              } else {
+                  // Must create a seed user
+                  const systemUser = await this.prisma.user.create({
+                      data: {
+                          email: 'system@specflow.ai',
+                          name: 'System Agent',
+                          password: 'hashed_placeholder',
+                          role: 'ADMIN'
+                      }
+                  });
+                  creatorId = systemUser.id;
+              }
+          }
+      }
+
       const result = job.result as any;
       const reqs = result.requirements || [];
       
@@ -172,7 +199,7 @@ export class AgentOrchestrator {
                   title: req.title,
                   content: req.content,
                   status: 'DRAFT',
-                  creatorId: job.creatorId || 'system', // Fallback to 'system' if null
+                  creatorId: creatorId!, 
               }
           });
           createdReqs.push(newReq);

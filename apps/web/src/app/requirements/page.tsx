@@ -6,8 +6,10 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TrustBadge } from '@/components/requirements/TrustBadge';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function RequirementsPage() {
+    const router = useRouter();
     const [requirements, setRequirements] = useState<any[]>([]);
 
     useEffect(() => {
@@ -17,7 +19,9 @@ export default function RequirementsPage() {
     const fetchReqs = async () => {
         try {
             const res = await api.get('/requirements');
-            setRequirements(Array.isArray(res.data) ? res.data : []);
+            // Backend returns { data: [], total: ... }
+            const reqData = res.data.data || res.data; 
+            setRequirements(Array.isArray(reqData) ? reqData : []);
         } catch (err) {
             console.error(err);
         }
@@ -60,7 +64,11 @@ export default function RequirementsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {Array.isArray(requirements) && requirements.map((req) => (
-                            <tr key={req.id} className="hover:bg-blue-50/30 transition-colors group">
+                            <tr 
+                                key={req.id} 
+                                className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
+                                onClick={() => router.push(`/requirements/${req.id}`)}
+                            >
                                 <td className="px-5 py-4 font-medium text-slate-900 font-mono text-xs">{req.code}</td>
                                 <td className="px-5 py-4">
                                     <div className="font-bold text-slate-800 mb-0.5">{req.title}</div>
