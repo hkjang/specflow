@@ -38,7 +38,12 @@ export class ValidatorAgent {
             model: desiredModel
         }, 'VALIDATION'); // Assuming VALIDATION model type exists or supported
         
-        return JSON.parse(res.content);
+        const json = JSON.parse(res.content);
+        // Ensure validatedRequirements exists, else use input
+        if (!json.validatedRequirements || !Array.isArray(json.validatedRequirements) || json.validatedRequirements.length === 0) {
+            json.validatedRequirements = requirements;
+        }
+        return json;
     } catch (e) {
         this.logger.error('Validation failed', e);
         return {

@@ -91,7 +91,11 @@ export class AgentOrchestrator {
     await this.completeStep(genStepNfr.id, nfrRes);
     await this.completeStep(genStepSec.id, secRes);
 
-    let allRequirements = [...(funcRes || []), ...(nfrRes || []), ...(secRes || [])];
+    let allRequirements = [
+        ...(Array.isArray(funcRes) ? funcRes : []),
+        ...(Array.isArray(nfrRes) ? nfrRes : []),
+        ...(Array.isArray(secRes) ? secRes : [])
+    ];
 
     // 4. Recursive Validation & Refinement Loop
     let loopCount = 0;

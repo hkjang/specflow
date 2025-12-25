@@ -171,27 +171,38 @@ export default function AutonomousAgentPage() {
 
                 // Check Completion
                 if (job.status === 'COMPLETED') {
+                    console.log('Job Completed:', job); // Debugging
                     setIsRunning(false);
                     setCurrentStep('COMPLETE');
                     clearInterval(interval);
                     
-                    if (job.result && job.result.requirements) {
-                         // Simplify result display mapping
-                         const reqs = Array.isArray(job.result.requirements) ? job.result.requirements : [];
+                    if (job.result) {
+                         let resultObj = job.result;
+                         // Handle double-stringified JSON if applicable
+                         if (typeof resultObj === 'string') {
+                             try { resultObj = JSON.parse(resultObj); } catch(e) {}
+                         }
+
+                         console.log('Processed Result:', resultObj); // Debugging
+
+                         const rawReqs = resultObj.requirements || [];
+                         const reqs = Array.isArray(rawReqs) ? rawReqs : [rawReqs];
+                         
                          setGeneratedReqs(reqs.map((r: any, i: number) => ({
-                             id: `REQ-${i}`,
+                             id: `REQ-${i + 1}`,
                              title: r.title || 'Requirement',
                              content: r.content || JSON.stringify(r),
                              type: r.category || 'Functional',
                              status: 'Verified'
                          })));
+                    } else {
+                        console.warn('Job completed but no result found');
                     }
                 } else if (job.status === 'FAILED') {
                      setIsRunning(false);
                      clearInterval(interval);
                      addLog('COMPLETE', 'Job Failed.', 'error');
                 }
-
             } catch (e) {
                 console.error('Polling error', e);
             }

@@ -44,7 +44,12 @@ export class RequirementGeneratorAgent {
         }, 'GENERATION');
         
         const json = JSON.parse(res.content);
-        return json.requirements || json; // Handle both wrapper or direct array if possible
+        const result = json.requirements || json;
+        const arr = Array.isArray(result) ? result : [result];
+        if (arr.length === 0) {
+            return [{ category: 'INFO', title: 'No Requirements Generated', content: 'The AI model returned an empty list. Please refine your goal.', priority: 'LOW' }];
+        }
+        return arr;
     } catch (e) {
         this.logger.error('Generation failed', e);
         return [

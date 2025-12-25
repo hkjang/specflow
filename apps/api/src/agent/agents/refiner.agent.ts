@@ -39,10 +39,11 @@ export class RefinerAgent {
         }, 'GENERATION');
         
         const json = JSON.parse(res.content);
-        return json.refinedRequirements || data;
+        const refined = json.refinedRequirements || data; // Use data if missing
+        return (Array.isArray(refined) && refined.length > 0) ? refined : data; // Fallback to original if output is empty
     } catch (e) {
         this.logger.error('Refinement failed', e);
-        return data; 
+        return data;  
     }
   }
 }
