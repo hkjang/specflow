@@ -273,28 +273,154 @@ async function seedOperationalData() {
     console.log('Seeding Operational Data...');
 
     const p = prisma as any;
+    
+    // Cleanup existing
+    await p.crawlHistory.deleteMany({});
+    await p.crawler.deleteMany({});
+    await p.dataSource.deleteMany({});
+    await p.operationRule.deleteMany({});
+    await p.partnerProposal.deleteMany({});
+    await p.systemSetting.deleteMany({});
 
-    // 1. Crawlers
-    const crawlers = [
-        { name: 'TechCrunch Bot', url: 'https://techcrunch.com', schedule: '0 0 * * *', status: 'ACTIVE' },
-        { name: 'HackerNews Bot', url: 'https://news.ycombinator.com', schedule: '0 */4 * * *', status: 'PAUSED' },
-        { name: 'Internal Wiki', url: 'https://wiki.internal.acme.com', schedule: '0 0 * * 1', status: 'ACTIVE' }
+    // 1. Enhanced Crawlers - Korean Government & Industry Sites
+    const crawlersData = [
+        { 
+            name: '국가법령정보센터', 
+            url: 'https://law.go.kr', 
+            schedule: '0 2 * * *', // 매일 새벽 2시
+            status: 'ACTIVE',
+            category: 'REGULATION',
+            description: '대한민국 법률, 시행령, 시행규칙 수집',
+            lastRunAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6시간 전
+            successCount: 125,
+            errorCount: 3
+        },
+        { 
+            name: '금융감독원 규정', 
+            url: 'https://fss.or.kr/fss/kr/rules', 
+            schedule: '0 3 * * 1', // 매주 월요일 새벽 3시
+            status: 'ACTIVE',
+            category: 'REGULATION',
+            description: '금융감독원 고시, 규정, 가이드라인 수집',
+            lastRunAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2일 전
+            successCount: 48,
+            errorCount: 1
+        },
+        { 
+            name: '개인정보보호위원회', 
+            url: 'https://pipc.go.kr', 
+            schedule: '0 4 * * *',
+            status: 'ACTIVE',
+            category: 'REGULATION',
+            description: '개인정보보호법, 가이드라인, 결정례 수집',
+            lastRunAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+            successCount: 67,
+            errorCount: 0
+        },
+        { 
+            name: '국가인권위원회', 
+            url: 'https://humanrights.go.kr', 
+            schedule: '0 5 * * 3', // 매주 수요일
+            status: 'PAUSED',
+            category: 'REGULATION',
+            description: '인권위 결정례 및 권고문 수집',
+            successCount: 23,
+            errorCount: 0
+        },
+        { 
+            name: 'IT Daily Tech News', 
+            url: 'https://itdaily.kr/tech', 
+            schedule: '0 */2 * * *', // 2시간마다
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: 'IT 기술 동향 및 신기술 뉴스 수집',
+            lastRunAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            successCount: 890,
+            errorCount: 12
+        },
+        { 
+            name: '경쟁사 API 문서', 
+            url: 'https://competitor.example.com/docs/api', 
+            schedule: '0 6 * * 0', // 매주 일요일
+            status: 'ERROR',
+            category: 'COMPETITOR',
+            description: '경쟁사 공개 API 스펙 변경 모니터링',
+            lastRunAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            successCount: 15,
+            errorCount: 8
+        },
+        { 
+            name: '사내 위키', 
+            url: 'https://wiki.company.internal/requirements', 
+            schedule: '0 1 * * *', // 매일 새벽 1시
+            status: 'ACTIVE',
+            category: 'INTERNAL',
+            description: '사내 요건 정의서 및 기술 문서 동기화',
+            lastRunAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            successCount: 234,
+            errorCount: 2
+        },
+        { 
+            name: 'KISA 보안 가이드', 
+            url: 'https://kisa.or.kr/public/laws', 
+            schedule: '0 5 * * 5', // 매주 금요일
+            status: 'ACTIVE',
+            category: 'REGULATION',
+            description: 'KISA 보안 가이드라인 및 취약점 정보 수집',
+            lastRunAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+            successCount: 56,
+            errorCount: 1
+        }
     ];
 
-    for (const c of crawlers) {
-        await p.crawler.create({ data: c });
+    const createdCrawlers: any[] = [];
+    for (const c of crawlersData) {
+        const crawler = await p.crawler.create({ data: c });
+        createdCrawlers.push(crawler);
     }
+    console.log(`Created ${createdCrawlers.length} crawlers.`);
+    
+    // 2. Crawl History for each active crawler
+    const historyStatuses = ['SUCCESS', 'SUCCESS', 'SUCCESS', 'FAILED', 'SUCCESS'];
+    for (const crawler of createdCrawlers.filter((c: any) => c.status === 'ACTIVE')) {
+        for (let h = 0; h < 5; h++) {
+            const daysAgo = h * 7; // Weekly history
+            const startTime = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+            const duration = 5000 + Math.floor(Math.random() * 30000);
+            const status = historyStatuses[h];
+            
+            await p.crawlHistory.create({
+                data: {
+                    crawlerId: crawler.id,
+                    status: status,
+                    duration: duration,
+                    pagesFound: status === 'SUCCESS' ? 10 + Math.floor(Math.random() * 50) : 0,
+                    itemsExtracted: status === 'SUCCESS' ? 3 + Math.floor(Math.random() * 15) : 0,
+                    errorMessage: status === 'FAILED' ? 'Connection timeout after 30s' : null,
+                    startedAt: startTime,
+                    completedAt: new Date(startTime.getTime() + duration)
+                }
+            });
+        }
+    }
+    console.log('Created crawl history.');
 
-    // 2. Data Sources
+    // 3. Enhanced Data Sources
     const sources = [
-        { name: 'Legacy ERP Docs', type: 'FILE', url: 's3://bucket/docs/erp_v1.pdf', status: 'SYNCED' },
-        { name: 'Regulatory PDF', type: 'FILE', url: 's3://bucket/compliance/2024_reg.pdf', status: 'PENDING' },
-        { name: 'Competitor API', type: 'URL', url: 'https://api.competitor.com/v1/docs', status: 'ERROR' }
+        { name: '2024 금융소비자보호법 시행령', type: 'FILE', url: 's3://specflow-docs/regulations/fss_2024.pdf', status: 'SYNCED', lastSync: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        { name: '개인정보 처리 가이드라인', type: 'FILE', url: 's3://specflow-docs/compliance/pipc_guide.pdf', status: 'SYNCED', lastSync: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+        { name: '차세대 시스템 RFP 문서', type: 'FILE', url: 's3://specflow-docs/rfp/next_gen_rfp_v3.docx', status: 'SYNCED', lastSync: new Date() },
+        { name: 'ISMS-P 인증 체크리스트', type: 'FILE', url: 's3://specflow-docs/security/isms_p_checklist.xlsx', status: 'PENDING' },
+        { name: '경쟁사 API 스펙', type: 'URL', url: 'https://api.competitor.com/v2/openapi.json', status: 'ERROR' },
+        { name: '사내 표준 요건 템플릿', type: 'FILE', url: 's3://specflow-docs/templates/req_template.docx', status: 'SYNCED', lastSync: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        { name: '법률용어 사전', type: 'FILE', url: 's3://specflow-docs/dict/legal_terms.json', status: 'SYNCED', lastSync: new Date() },
+        { name: '공공데이터포털 API', type: 'URL', url: 'https://data.go.kr/api/openapi', status: 'SYNCED', lastSync: new Date(Date.now() - 12 * 60 * 60 * 1000) }
     ];
 
     for (const s of sources) {
         await p.dataSource.create({ data: s });
     }
+    console.log(`Created ${sources.length} data sources.`);
 
     // 3. Rules
     const rules = [

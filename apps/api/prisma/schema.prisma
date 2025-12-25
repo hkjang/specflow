@@ -561,13 +561,33 @@ model Explanation {
 // --- New Admin Modules ---
 
 model Crawler {
-  id        String   @id @default(uuid())
-  name      String
-  url       String
-  schedule  String   // Cron expression
-  status    String   // ACTIVE, PAUSED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  schedule    String   // Cron expression
+  status      String   // ACTIVE, PAUSED, ERROR
+  description String?
+  category    String?  // REGULATION, NEWS, COMPETITOR, INTERNAL
+  lastRunAt   DateTime?
+  successCount Int     @default(0)
+  errorCount   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  history     CrawlHistory[]
+}
+
+model CrawlHistory {
+  id          String   @id @default(uuid())
+  crawlerId   String
+  crawler     Crawler  @relation(fields: [crawlerId], references: [id])
+  status      String   // SUCCESS, FAILED, TIMEOUT
+  duration    Int?     // milliseconds
+  pagesFound  Int      @default(0)
+  itemsExtracted Int   @default(0)
+  errorMessage String?
+  startedAt   DateTime
+  completedAt DateTime?
 }
 
 model DataSource {
