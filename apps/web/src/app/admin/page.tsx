@@ -3,31 +3,45 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { adminApi } from '@/lib/api';
-import { AlertTriangle, CheckCircle, Clock, FileText, TrendingUp, AlertOctagon, Activity } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, FileText, TrendingUp, AlertOctagon, Activity, Zap, Database, Users } from 'lucide-react';
 import { AiTrendSummary } from '@/components/admin/AiTrendSummary';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { Badge } from '@/components/ui/badge';
+
+interface ProgressStats {
+    statusDistribution: { status: string; count: number }[];
+    maturityDistribution: { maturity: string; count: number }[];
+    weeklyTrend: { week: string; created: number; approved: number }[];
+    extractionStats: { status: string; count: number }[];
+}
 
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState<any>(null);
     const [quality, setQuality] = useState<any>(null);
     const [trends, setTrends] = useState<any[]>([]);
     const [risks, setRisks] = useState<any>(null);
+    const [progress, setProgress] = useState<ProgressStats | null>(null);
+    const [activities, setActivities] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [statsRes, qualityRes, trendsRes, risksRes] = await Promise.all([
+                const [statsRes, qualityRes, trendsRes, risksRes, progressRes, activitiesRes] = await Promise.all([
                     adminApi.getOverallStats(),
                     adminApi.getQualityMetrics(),
                     adminApi.getTrends('daily'),
                     adminApi.getRisks(),
+                    adminApi.getProgressStats(),
+                    adminApi.getRecentActivities(5),
                 ]);
 
                 setStats(statsRes.data);
                 setQuality(qualityRes.data);
                 setTrends(trendsRes.data);
                 setRisks(risksRes.data);
+                setProgress(progressRes.data);
+                setActivities(activitiesRes.data);
             } catch (error) {
                 console.error("Failed to fetch dashboard data", error);
             } finally {
@@ -137,25 +151,64 @@ export default function AdminDashboardPage() {
                     </CardHeader>
                     <CardContent>
                         {/* Mock data for visualization */}
-                        <div className="space-y-4 pt-4">
-                            {[
-                                { name: '금융 (Finance)', count: 45, color: 'bg-blue-500', percent: 45 },
-                                { name: '의료/헬스케어', count: 32, color: 'bg-emerald-500', percent: 32 },
-                                { name: '유통/물류', count: 18, color: 'bg-amber-500', percent: 18 },
-                                { name: '자동차/모빌리티', count: 12, color: 'bg-slate-500', percent: 12 }
-                            ].map(item => (
-                                <div key={item.name} className="flex items-center text-sm">
-                                    <div className="w-32 font-medium text-slate-700 truncate">{item.name}</div>
-                                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full mx-3 overflow-hidden">
-                                        <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.percent}%` }} />
-                                    </div>
-                                    <div className="w-12 text-right font-mono text-slate-600">{item.count}건</div>
+                            {/* Real extraction stats */}
+                            {progress?.extractionStats && progress.extractionStats.length > 0 ? (
+                                <div className="space-y-3 pt-2">
+                                    <p className="text-xs text-slate-500 mb-2">AI 추출 작업 현황</p>
+                                    {progress.extractionStats.map(item => {
+                                        const total = progress.extractionStats.reduce((a, b) => a + b.count, 0);
+                                        const percent = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                                        const colors: Record<string, string> = {
+                                            COMPLETED: 'bg-green-500',
+                                            PROCESSING: 'bg-blue-500',
+                                            PENDING: 'bg-amber-500',
+                                            FAILED: 'bg-red-500'
+                                        };
+                                        return (
+                                            <div key={item.status} className="flex items-center text-sm">
+                                                <div className="w-24 font-medium text-slate-700">{item.status}</div>
+                                                <div className="flex-1 h-2.5 bg-slate-100 rounded-full mx-3 overflow-hidden">
+                                                    <div className={`h-full rounded-full ${colors[item.status] || 'bg-slate-400'}`} style={{ width: `${percent}%` }} />
+                                                </div>
+                                                <div className="w-12 text-right font-mono text-slate-600">{item.count}건</div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            ))}
-                        </div>
+                            ) : (
+                                <div className="text-sm text-slate-400 p-4">추출 작업 데이터가 없습니다.</div>
+                            )}
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Recent Activities Section */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-slate-800">
+                        <Activity className="h-4 w-4 text-indigo-500" />
+                        시스템 최근 활동 (Recent System Activity)
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {activities.length === 0 ? (
+                        <div className="text-sm text-slate-400 p-4">최근 활동이 없습니다.</div>
+                    ) : (
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                            {activities.map((a: any) => (
+                                <div key={a.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div className="h-2 w-2 mt-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-700 truncate">{a.title}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{a.user} • {new Date(a.timestamp).toLocaleString()}</p>
+                                    </div>
+                                    <Badge variant="outline" className="text-xs flex-shrink-0">{a.code}</Badge>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
