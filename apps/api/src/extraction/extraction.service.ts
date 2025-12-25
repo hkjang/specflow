@@ -90,7 +90,20 @@ export class ExtractionService {
     }
 
     async mergeJob(jobId: string) {
-        // 1. Get all APPROVED drafts for this job
+        // 1. Get job info (for AI model name)
+        const job = await this.prisma.extractionJob.findUnique({
+            where: { id: jobId },
+            include: { source: true }
+        });
+        
+        // Get AI provider info from the job or default
+        let modelName = 'AI Extraction';
+        if (job?.source?.metadata) {
+            const meta = job.source.metadata as any;
+            modelName = meta.modelName || meta.provider || 'AI Extraction';
+        }
+
+        // 2. Get all APPROVED drafts for this job
         const drafts = await this.prisma.requirementDraft.findMany({
             where: { jobId, status: 'APPROVED' }
         });
@@ -119,7 +132,7 @@ export class ExtractionService {
 
         const createdRequirements = [];
 
-        // 2. Convert to Requirements
+        // 3. Convert to Requirements
         for (const draft of drafts) {
             // Lookup category by code (draft.type might be "Functional", "Non-Functional", etc.)
             let categoryId: string | null = null;
@@ -149,14 +162,22 @@ export class ExtractionService {
                         create: [{ 
                             categoryId: categoryId,
                             source: 'AI',
-                            confidence: draft.confidence || 0.8
+                            confidence: draft.confidence || 0.8,
+                            model: modelName
                         }]
-                    } : undefined
+                    } : undefined,
+                    // Create AI Metadata
+                    aiMetadata: {
+                        create: {
+                            modelName: modelName,
+                            reasoning: 'Extracted from document via AI'
+                        }
+                    }
                 }
             });
             createdRequirements.push(req);
 
-            // 3. Mark draft as MERGED
+            // 4. Mark draft as MERGED
             await this.prisma.requirementDraft.update({
                 where: { id: draft.id },
                 data: { status: 'MERGED' }
