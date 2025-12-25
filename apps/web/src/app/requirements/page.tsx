@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Plus, Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Sparkles, Bot } from 'lucide-react';
+import { Plus, Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Sparkles, Bot, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TrustBadge } from '@/components/requirements/TrustBadge';
 import Link from 'next/link';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Debounce Hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -34,6 +35,8 @@ export default function RequirementsPage() {
     const [requirements, setRequirements] = useState<any[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     // Filters & Pagination
     const [page, setPage] = useState(1);
@@ -80,6 +83,42 @@ export default function RequirementsPage() {
     const handleStatusChange = (val: string) => {
         setStatus(val);
         setPage(1);
+        setSelected(new Set());
+    };
+
+    // Selection handlers
+    const toggleSelect = (id: string) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selected.size === requirements.length) {
+            setSelected(new Set());
+        } else {
+            setSelected(new Set(requirements.map(r => r.id)));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selected.size === 0) return;
+        if (!confirm(`${selected.size}개의 요건을 삭제하시겠습니까?`)) return;
+        
+        setBulkDeleting(true);
+        try {
+            await api.post('/requirements/global/bulk-delete', { ids: Array.from(selected) });
+            setSelected(new Set());
+            fetchReqs();
+        } catch (err) {
+            console.error(err);
+            alert('일괄 삭제 실패');
+        } finally {
+            setBulkDeleting(false);
+        }
     };
 
     return (
@@ -130,6 +169,28 @@ export default function RequirementsPage() {
 
             {/* Table */}
             <div className="rounded-lg border bg-white shadow-sm overflow-hidden relative min-h-[400px]">
+                {/* Bulk Action Bar */}
+                {selected.size > 0 && (
+                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-3 flex items-center justify-between">
+                        <span className="text-sm font-bold text-blue-700">
+                            {selected.size}개 선택됨
+                        </span>
+                        <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={handleBulkDelete}
+                            disabled={bulkDeleting}
+                        >
+                            {bulkDeleting ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                                <Trash2 className="h-4 w-4 mr-1" />
+                            )}
+                            일괄 삭제
+                        </Button>
+                    </div>
+                )}
+                
                 {loading && (
                     <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -138,6 +199,12 @@ export default function RequirementsPage() {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                         <tr>
+                            <th className="px-3 py-4 w-[40px]">
+                                <Checkbox 
+                                    checked={requirements.length > 0 && selected.size === requirements.length}
+                                    onCheckedChange={toggleSelectAll}
+                                />
+                            </th>
                             <th className="px-5 py-4 font-bold w-[120px]">코드 (Code)</th>
                             <th className="px-5 py-4 font-bold">요건 명 / 내용 미리보기</th>
                             <th className="px-5 py-4 font-bold w-[120px]">생성 모델</th>
@@ -151,9 +218,15 @@ export default function RequirementsPage() {
                         {requirements.map((req) => (
                             <tr 
                                 key={req.id} 
-                                className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
+                                className={`hover:bg-blue-50/30 transition-colors group cursor-pointer ${selected.has(req.id) ? 'bg-blue-50' : ''}`}
                                 onClick={() => router.push(`/requirements/${req.id}`)}
                             >
+                                <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                                    <Checkbox 
+                                        checked={selected.has(req.id)}
+                                        onCheckedChange={() => toggleSelect(req.id)}
+                                    />
+                                </td>
                                 <td className="px-5 py-4 font-medium text-slate-900 font-mono text-xs">{req.code}</td>
                                 <td className="px-5 py-4">
                                     <div className="font-bold text-slate-800 mb-0.5">{req.title}</div>

@@ -190,6 +190,20 @@ export class RequirementsService {
     });
   }
 
+  async bulkDelete(ids: string[]) {
+    // Delete related records first
+    await this.prisma.aiMetadata.deleteMany({ where: { requirementId: { in: ids } } });
+    await this.prisma.requirementHistory.deleteMany({ where: { requirementId: { in: ids } } });
+    await this.prisma.qualityMetric.deleteMany({ where: { requirementId: { in: ids } } });
+    await this.prisma.comment.deleteMany({ where: { requirementId: { in: ids } } });
+    
+    const result = await this.prisma.requirement.deleteMany({
+      where: { id: { in: ids } }
+    });
+    
+    return { deleted: result.count };
+  }
+
   // --- Comments & Sentiment ---
 
   async addComment(requirementId: string, content: string, userId: string) {
@@ -260,6 +274,12 @@ export class RequirementsService {
     });
   }
   async remove(id: string) {
+    // Delete related records first to avoid FK constraint errors
+    await this.prisma.aiMetadata.deleteMany({ where: { requirementId: id } });
+    await this.prisma.requirementHistory.deleteMany({ where: { requirementId: id } });
+    await this.prisma.qualityMetric.deleteMany({ where: { requirementId: id } });
+    await this.prisma.comment.deleteMany({ where: { requirementId: id } });
+    
     return this.prisma.requirement.delete({
       where: { id }
     });

@@ -27,6 +27,11 @@ export class RequirementsController {
     return this.requirementsService.bulkUpdateStatus(body.ids, body.status);
   }
 
+  @Post('global/bulk-delete')
+  bulkDelete(@Body() body: { ids: string[] }) {
+    return this.requirementsService.bulkDelete(body.ids);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.requirementsService.findOne(id);
