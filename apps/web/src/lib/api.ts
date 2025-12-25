@@ -95,6 +95,7 @@ export const extractionApi = {
 export const classificationApi = {
     getBusiness: (params?: any) => api.get('/classification/business', { params }),
     createBusiness: (data: any) => api.post('/classification/business', data),
+    getCategories: () => api.get('/classification/categories'),
     autoClassify: (data: { projectId: string; providerId: string }) => api.post('/classification/auto', data),
     getStats: () => api.get('/classification/stats'),
 };

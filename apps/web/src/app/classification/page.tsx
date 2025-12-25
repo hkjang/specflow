@@ -11,7 +11,7 @@ import { Plus, Tag, Layers, Construction, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 export default function ClassificationPage() {
-    const [businesses, setBusinesses] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
     const [projectId, setProjectId] = useState('default-project-id');
     const [providers, setProviders] = useState<any[]>([]);
     const [selectedProviderId, setSelectedProviderId] = useState<string>("");
@@ -19,14 +19,16 @@ export default function ClassificationPage() {
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
-        fetchBusinesses();
+        fetchCategories();
         fetchProviders();
     }, [projectId]);
 
-    const fetchBusinesses = async () => {
+    const fetchCategories = async () => {
         try {
-            const res = await classificationApi.getBusiness({ projectId });
-            setBusinesses(res.data);
+            const res = await classificationApi.getCategories();
+            // Filter to top-level industries or large categories
+            const topLevel = res.data.filter((c: any) => c.level === 'Industry' || c.level === 'Large');
+            setCategories(topLevel);
         } catch (err) {
             console.error(err);
         }
@@ -42,21 +44,16 @@ export default function ClassificationPage() {
     };
 
     const createBusiness = async () => {
-        const name = prompt('새로운 비즈니스 분류명을 입력하세요:');
-        if (!name) return;
-        try {
-            await classificationApi.createBusiness({ name, projectId });
-            fetchBusinesses();
-        } catch (error) {
-            alert('생성 실패');
-        }
+        // ... unused for now or redirect to seed logic
+        alert('분류 체계는 관리자 페이지에서 수정이 권장됩니다.');
     };
 
     const handleAutoClassify = async () => {
         try {
             setProcessing(true);
+            // Assuming this endpoint triggers the batch job
             await classificationApi.autoClassify({ projectId, providerId: selectedProviderId });
-            alert('자동 분류 작업이 시작되었습니다. 결과를 확인하려면 잠시 후 새로고침하세요.');
+            alert('자동 분류 작업 완료. 요건 목록을 확인하세요.');
             setOpenAiDialog(false);
         } catch (error) {
             alert('자동 분류 요청 실패');
@@ -87,10 +84,11 @@ export default function ClassificationPage() {
                         </DialogHeader>
                         <div className="py-4 space-y-4">
                             <p className="text-sm text-slate-600">
-                                등록된 모든 미분류 요건에 대해 AI가 자동으로 카테고리를 추론하여 태깅합니다.
+                                등록된 미분류 요건에 대해 AI가 카테고리를 자동 분석합니다.
                             </p>
+                            {/* Provider Select */}
                             <div className="space-y-2">
-                                <Label>사용할 AI 모델 (Select Model)</Label>
+                                <Label>사용할 AI 모델</Label>
                                 <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="AI 모델 선택" />
@@ -99,7 +97,6 @@ export default function ClassificationPage() {
                                         {providers.map(p => (
                                             <SelectItem key={p.id} value={p.id}>
                                                 <span className="font-bold">{p.name}</span>
-                                                <span className="text-xs text-muted-foreground ml-2">({p.models})</span>
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -108,37 +105,39 @@ export default function ClassificationPage() {
                         </div>
                         <DialogFooter>
                             <Button onClick={handleAutoClassify} disabled={processing || !selectedProviderId} className="bg-indigo-600 hover:bg-indigo-700">
-                                {processing ? '요청 중...' : '분류 시작'}
+                                {processing ? '분류 중...' : '분류 시작'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
 
-                <Button onClick={createBusiness} className="bg-blue-600 hover:bg-blue-700 font-bold shadow-sm">
-                    <Plus className="h-4 w-4 mr-2" /> 분류 추가
+                <Button disabled className="bg-slate-300 font-bold shadow-sm cursor-not-allowed">
+                    <Plus className="h-4 w-4 mr-2" /> 분류 추가 (관리자 전용)
                 </Button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {businesses.length === 0 && (
+                {categories.length === 0 && (
                     <div className="col-span-full p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
-                        등록된 분류 체계가 없습니다.
+                        등록된 분류 체계가 없습니다. (시스템 설정을 확인하세요)
                     </div>
                 )}
-                {businesses.map((biz) => (
-                    <Card key={biz.id} className="p-5 hover:shadow-md transition-shadow cursor-pointer border-slate-200">
+                {categories.map((cat) => (
+                    <Card key={cat.id} className="p-5 hover:shadow-md transition-shadow cursor-default border-slate-200">
                         <div className="flex items-start justify-between mb-3">
                             <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center">
                                 <Layers className="h-5 w-5 text-indigo-600" />
                             </div>
-                            <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">
-                                {biz.code || 'NO-CODE'}
+                            <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                {cat.code}
                             </span>
                         </div>
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">{biz.name}</h3>
-                        <div className="text-sm text-slate-500 flex items-center gap-2">
-                            <Tag className="h-3 w-3" />
-                            <span>{biz.functions?.length || 0}개 하위 기능</span>
+                        <h3 className="font-bold text-lg text-slate-800 mb-1">{cat.name}</h3>
+                        <p className="text-xs text-slate-400 mb-3 line-clamp-2">{cat.description}</p>
+                        
+                        <div className="text-sm text-slate-600 flex items-center gap-2 bg-slate-50 p-2 rounded">
+                            <Tag className="h-3 w-3 text-slate-400" />
+                            <span>하위 분류: {cat.children?.length || 0}개</span>
                         </div>
                     </Card>
                 ))}
