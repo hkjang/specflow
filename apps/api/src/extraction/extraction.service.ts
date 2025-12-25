@@ -121,6 +121,22 @@ export class ExtractionService {
 
         // 2. Convert to Requirements
         for (const draft of drafts) {
+            // Lookup category by code (draft.type might be "Functional", "Non-Functional", etc.)
+            let categoryId: string | null = null;
+            if (draft.type) {
+                const category = await this.prisma.category.findFirst({
+                    where: { 
+                        OR: [
+                            { code: draft.type },
+                            { name: { contains: draft.type, mode: 'insensitive' } }
+                        ]
+                    }
+                });
+                if (category) {
+                    categoryId = category.id;
+                }
+            }
+
             const req = await this.prisma.requirement.create({
                 data: {
                     code: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Unique code
@@ -129,19 +145,13 @@ export class ExtractionService {
                     creatorId: creatorId, 
                     sourceId: draft.sourceId,
                     status: 'DRAFT', // Initial status
-                    classifications: {
-                        create: draft.type ? [{ 
-                            // TODO: Resolve draft.type string (e.g. "FUNC") to Category ID
-                            // For now, we skip or need a CategoryService lookup.
-                            // Assuming we might have category info in metadata or need to search.
-                            // Let's defer strict mapping or try to find one.
-                            // Fallback: If draft.type matches a Category Code
-                             category: { 
-                                 connect: { code: draft.type } 
-                             },
-                             source: 'AI'
-                        }] : undefined
-                    }
+                    classifications: categoryId ? {
+                        create: [{ 
+                            categoryId: categoryId,
+                            source: 'AI',
+                            confidence: draft.confidence || 0.8
+                        }]
+                    } : undefined
                 }
             });
             createdRequirements.push(req);
@@ -161,6 +171,14 @@ export class ExtractionService {
             where: { id },
             data
         });
+    }
+
+    async batchApproveDrafts(jobId: string) {
+        const result = await this.prisma.requirementDraft.updateMany({
+            where: { jobId, status: 'PENDING' },
+            data: { status: 'APPROVED' }
+        });
+        return { message: `Approved ${result.count} drafts`, count: result.count };
     }
 
     async getAllJobs() {

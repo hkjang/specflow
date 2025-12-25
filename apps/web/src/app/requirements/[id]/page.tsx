@@ -225,6 +225,19 @@ export default function RequirementDetail() {
                                     {req.menu?.name || '-'}
                                 </span>
                             </div>
+
+                            {/* AI Source Metadata */}
+                            {req.aiMetadata?.modelName && (
+                                <div className="flex justify-between items-center group pt-2 border-t border-slate-100 mt-2">
+                                    <span className="text-slate-500 flex items-center gap-1.5">
+                                        <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                                        생성 모델
+                                    </span>
+                                    <span className="font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs border border-indigo-100">
+                                        {req.aiMetadata.modelName}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                         
                         {/* Classifications / Tags */}
@@ -244,10 +257,15 @@ export default function RequirementDetail() {
                                                 : 'bg-slate-50 text-slate-600 border-slate-200'}
                                             transition-colors hover:bg-opacity-80
                                         `}
-                                        title={c.source === 'AI' ? `AI Classified (Confidence: ${(c.confidence * 100).toFixed(0)}%)` : 'Human Verified'}
+                                        title={
+                                            c.source === 'AI' 
+                                                ? `AI Classified by ${c.model || 'Unknown'} (Confidence: ${(c.confidence * 100).toFixed(0)}%)` 
+                                                : 'Human Verified'
+                                        }
                                     >
                                         {c.source === 'AI' && <Sparkles className="h-3 w-3" />}
                                         {c.category?.name}
+                                        {c.model && <span className="text-[10px] opacity-75 ml-0.5">({c.model})</span>}
                                     </div>
                                 ))}
                                 {(!req.classifications || req.classifications.length === 0) && (

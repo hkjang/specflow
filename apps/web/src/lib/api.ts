@@ -113,6 +113,7 @@ export const extractionApi = {
     deleteJob: (id: string) => api.delete(`/extraction/jobs/${id}`),
     updateDraft: (draftId: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) => api.patch(`/extraction/drafts/${draftId}`, data),
     mergeJob: (jobId: string) => api.post(`/extraction/jobs/${jobId}/merge`),
+    batchApprove: (jobId: string) => api.post(`/extraction/jobs/${jobId}/batch-approve`),
 };
 
 export const classificationApi = {

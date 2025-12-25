@@ -90,6 +90,17 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
         }
     };
 
+    const handleBatchApprove = async () => {
+        try {
+            const res = await extractionApi.batchApprove(id);
+            alert(`${res.data.count}개의 요건을 일괄 승인했습니다.`);
+            // Update local state to reflect approval
+            setDrafts(drafts.map(d => d.status === 'PENDING' ? { ...d, status: 'APPROVED' } : d));
+        } catch (error) {
+            alert('일괄 승인 실패');
+        }
+    };
+
     if (loading) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin" /></div>;
 
     return (
@@ -106,9 +117,14 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
             <Card className="flex-1 flex flex-col">
                 <CardHeader className="flex flex-row justify-between items-center">
                     <CardTitle>추출된 요건 (Extracted Requirements)</CardTitle>
-                    <Button onClick={handleMerge} disabled={!drafts.some(d => d.status === 'APPROVED')}>
-                        승인된 요건 등록 (Merge)
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={handleBatchApprove} disabled={!drafts.some(d => d.status === 'PENDING')}>
+                            전체 승인
+                        </Button>
+                        <Button onClick={handleMerge} disabled={!drafts.some(d => d.status === 'APPROVED')}>
+                            승인된 요건 등록 (Merge)
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-auto space-y-4">
                     {/* Processing State UI */}

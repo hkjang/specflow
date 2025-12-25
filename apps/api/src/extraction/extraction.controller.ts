@@ -59,7 +59,13 @@ export class ExtractionController {
 
     @Post('jobs/:id/merge')
     async mergeJob(@Param('id') id: string) {
+        console.log(`[DEBUG] mergeJob called with id: ${id}`);
         return this.extractionService.mergeJob(id);
+    }
+
+    @Post('jobs/:id/batch-approve')
+    async batchApprove(@Param('id') jobId: string) {
+        return this.extractionService.batchApproveDrafts(jobId);
     }
 
     @Patch('drafts/:id')

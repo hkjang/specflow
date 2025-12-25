@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Plus, Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, SortAsc, SortDesc, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Sparkles, Bot } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TrustBadge } from '@/components/requirements/TrustBadge';
 import Link from 'next/link';
@@ -140,6 +140,7 @@ export default function RequirementsPage() {
                         <tr>
                             <th className="px-5 py-4 font-bold w-[120px]">코드 (Code)</th>
                             <th className="px-5 py-4 font-bold">요건 명 / 내용 미리보기</th>
+                            <th className="px-5 py-4 font-bold w-[120px]">생성 모델</th>
                             <th className="px-5 py-4 font-bold w-[150px]">신뢰도 (Trust)</th>
                             <th className="px-5 py-4 font-bold w-[120px]">상태</th>
                             <th className="px-5 py-4 font-bold w-[120px]">분류</th>
@@ -159,6 +160,16 @@ export default function RequirementsPage() {
                                     <div className="text-xs text-slate-500 line-clamp-1 group-hover:text-blue-600 transition-colors">
                                         {req.content}
                                     </div>
+                                </td>
+                                <td className="px-5 py-4 text-xs">
+                                    {req.aiMetadata?.modelName ? (
+                                        <div className="flex items-center gap-1.5 text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded border border-indigo-100 w-fit">
+                                            <Sparkles className="h-3 w-3" />
+                                            {req.aiMetadata.modelName}
+                                        </div>
+                                    ) : (
+                                        <span className="text-slate-400">-</span>
+                                    )}
                                 </td>
                                 <td className="px-5 py-4">
                                     <TrustBadge
