@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+console.log('--- FRESH RUN: Seeding realistic data ---');
+
 const prisma = new PrismaClient();
 
 const categories = [
@@ -340,12 +342,26 @@ async function seedAiProviders() {
     console.log('Seeding AI Providers...');
     const p = prisma as any;
 
+    // Cleanup legacy 'Ollama Local' if it exists to replace with specific ones
+    await p.aiProvider.deleteMany({
+        where: { name: 'Ollama Local' }
+    });
+    console.log('Cleaned up legacy "Ollama Local" provider.');
+
     const providers = [
         {
-            name: 'Ollama Local',
+            name: 'Ollama (gpt-oss:20b)',
             type: 'OLLAMA',
             endpoint: 'http://localhost:11434',
             models: 'gpt-oss:20b',
+            isActive: true,
+            priority: 1
+        },
+        {
+            name: 'Ollama (qwen3:8b)',
+            type: 'OLLAMA',
+            endpoint: 'http://localhost:11434',
+            models: 'qwen3:8b',
             isActive: true,
             priority: 1
         },
@@ -361,7 +377,6 @@ async function seedAiProviders() {
     ];
 
     for (const provider of providers) {
-        // Check if exists by name to avoid duplicates if re-seeding
         const existing = await p.aiProvider.findFirst({
             where: { name: provider.name }
         });
@@ -372,7 +387,15 @@ async function seedAiProviders() {
             });
             console.log(`Created AI Provider: ${provider.name}`);
         } else {
-            console.log(`AI Provider ${provider.name} already exists.`);
+            await p.aiProvider.update({
+                where: { id: existing.id },
+                data: {
+                    models: provider.models,
+                    endpoint: provider.endpoint,
+                    isActive: provider.isActive
+                }
+            });
+            console.log(`Updated AI Provider: ${provider.name}`);
         }
     }
     console.log('Seeding AI Providers Completed.');
@@ -510,6 +533,192 @@ async function seedProjectsAndPartners() {
     }
 
     console.log('Seeding Projects and Partners Completed.');
+
+    await seedRequirements(prisma);
+}
+
+// --- Realistic Requirement Generation ---
+
+async function seedRequirements(prisma: any) {
+    console.log('Seeding Realistic Requirements (100+)...');
+
+    // 1. Fetch Context Data
+    const projects = await prisma.project.findMany();
+    const categories = await prisma.category.findMany();
+    
+    // 0. Ensure Creator User Exists
+    const creatorId = 'sys-admin';
+    await prisma.user.upsert({
+        where: { id: creatorId },
+        update: {},
+        create: {
+            id: creatorId,
+            email: 'admin@specflow.io',
+            name: 'System Admin',
+            password: 'hashed-password-placeholder', // In real app, hash this
+            role: 'ADMIN',
+            organizationId: projects[0]?.organizationId || 'org-001' // Fallback
+        }
+    });
+
+    console.log('Cleaning up old requirements...');
+    await prisma.requirementClassification.deleteMany({});
+    await prisma.aiMetadata.deleteMany({});
+    await prisma.requirement.deleteMany({});
+    console.log('Old requirements cleaned up.');
+
+    // Helper to get random item
+    // Helper to get random item
+    const rand = (arr: any[]) => arr[Math.floor(Math.random() * arr.length)];
+    const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+    // 2. Domain Vocabulary
+    const vocabulary: Record<string, any> = {
+        'Finance': {
+            nouns: ['계좌', '이체', '대출', '신용한도', '자산', '투자', '환율', '결제', '정산', '카드'],
+            verbs: ['조회', '생성', '갱신', '삭제', '승인', '거절', '검증', '계산', '분석', '리포트'],
+            contexts: ['실시간', '배치', '모바일', '웹', 'API', '레거시 연동', '보안 강화', '규제 준수']
+        },
+        'Logistics': {
+            nouns: ['배송', '주문', '재고', '창고', '운송장', '기사', '경로', '위치', '입고', '출고'],
+            verbs: ['추적', '할당', '최적화', '스캔', '검수', '포장', '반품', '취소', '예약', '알림'],
+            contexts: ['GPS 기반', '바코드', 'RFID', '자동화', '드론', '당일 배송', '콜드체인']
+        },
+        'Public': {
+            nouns: ['민원', '증명서', '공고', '접수', '심사', '복지', '세금', '예산', '통계', '정책'],
+            verbs: ['신청', '발급', '열람', '제출', '동의', '인증', '고객센터', '연계', '보존', '폐기'],
+            contexts: ['대국민 서비스', '접근성 준수', '본인 인증', '전자 문서', '공공 데이터']
+        },
+        'Bio': {
+            nouns: ['유전체', '임상', '후보물질', '실험', '데이터', '연구', '논문', '특허', '시약', '샘플'],
+            verbs: ['분석', '시각화', '저장', '공유', '탐색', '대조', '필터링', '예측', '모델링', '검증'],
+            contexts: ['대용량 처리', 'AI 추론', '보안 필수', '클라우드', '고성능 연산']
+        },
+        'Factory': {
+            nouns: ['설비', '라인', '센서', '온도', '압력', '불량률', '생산량', '자재', '작업자', '경보'],
+            verbs: ['모니터링', '제어', '수집', '감지', '예지보전', '스케줄링', '리포팅', '동기화', '교체', '점검'],
+            contexts: ['실시간 스트리밍', 'IoT', '엣지 컴퓨팅', '안전 관리', '수율 최적화']
+        }
+    };
+
+    // Map Projects to likely domains based on name
+    const getDomain = (projName: string) => {
+        if (projName.includes('뱅킹')) return 'Finance';
+        if (projName.includes('물류')) return 'Logistics';
+        if (projName.includes('공공')) return 'Public';
+        if (projName.includes('신약')) return 'Bio';
+        if (projName.includes('팩토리')) return 'Factory';
+        return 'Finance'; // Default
+    };
+
+    const generatedReqs = [];
+    const targetCount = 120; // Aim for 120 reqs
+
+    for (let i = 0; i < targetCount; i++) {
+        const project = rand(projects);
+        const domainKey = getDomain(project.name);
+        const vocab = vocabulary[domainKey];
+
+        // Generate Title & Content
+        const noun = rand(vocab.nouns);
+        const verb = rand(vocab.verbs);
+        const context = rand(vocab.contexts);
+        
+        const title = `${context} 환경에서의 ${noun} ${verb} 기능`;
+        const content = `사용자가 시스템을 통해 ${noun} 정보를 ${verb}할 수 있어야 한다. 
+주요 요구사항:
+1. ${context} 기술을 활용하여 안정성을 확보할 것.
+2. ${noun} 데이터의 무결성을 보장할 것.
+3. 처리 결과에 대한 즉각적인 피드백을 제공할 것.`;
+
+        // Pick Categories (1 Main, maybe 1 secondary)
+        // Try to pick meaningful category based on context keywords? Or random for variety.
+        // Let's bias: '보안' context -> SEC category. '성능' -> NFR.
+        
+        let targetCatCode = 'FUNC'; // Default Function
+        if (title.includes('보안') || title.includes('인증')) targetCatCode = 'SEC';
+        else if (title.includes('전송') || title.includes('API')) targetCatCode = 'INT';
+        else if (title.includes('데이터') || title.includes('DB')) targetCatCode = 'DATA';
+        else if (title.includes('모니터링') || title.includes('운영')) targetCatCode = 'OPS';
+        else if (title.includes('UI') || title.includes('화면')) targetCatCode = 'UIUX';
+
+        // Find the actual Category object (try to find specific child if possible, else parent)
+        const candidates = categories.filter((c: any) => c.code?.startsWith(targetCatCode) || c.parentId === categories.find((p: any) => p.code === targetCatCode)?.id);
+        const mainCategory = candidates.length > 0 ? rand(candidates) : categories[0];
+
+        // Random Properties
+        const statusList = ['DRAFT', 'REVIEW', 'APPROVED', 'DEPRECATED'];
+        const priorityList = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+        
+        const status = rand(statusList);
+        const priority = rand(priorityList);
+        // Biased trust grade based on status
+        let trustGrade = Math.random(); 
+        if (status === 'APPROVED' || status === 'DONE') trustGrade = 0.8 + (Math.random() * 0.2); // 0.8 ~ 1.0
+
+        // Random Model Source
+        const models = ['gpt-4o', 'gpt-3.5-turbo', 'claude-3-opus', 'llama-3-70b', 'mistral-large'];
+        const genModel = rand(models);
+
+        // Create Requirement
+        const req = await prisma.requirement.create({
+            data: {
+                code: `REQ-${domainKey.substring(0, 3).toUpperCase()}-${1000 + i}`,
+                title,
+                content: content,
+                status: status as any,
+                creatorId: 'sys-admin', // Assuming we have no proper users yet, or use NULL if optional
+                trustGrade: parseFloat(trustGrade.toFixed(2)),
+                version: 1,
+                
+                // Add AI Metadata
+                aiMetadata: {
+                    create: {
+                        modelName: genModel,
+                        reasoning: 'Automated extraction from legacy docs',
+                        biasScore: Math.random() * 0.2
+                    }
+                }
+            }
+        });
+
+        // Add Classification (Explicit Tags)
+        // Scenario 1: Pure AI (Status DRAFT/PENDING)
+        // Scenario 2: Mixed (Human verified some)
+        
+        const isVerified = (status === 'APPROVED' || status === 'DONE');
+        const classModel = rand(models); // Classification might be done by a different model
+        
+        // 1. Add Main Category Classification
+        await prisma.requirementClassification.create({
+            data: {
+                requirementId: req.id,
+                categoryId: mainCategory.id,
+                source: isVerified ? 'HUMAN' : 'AI',
+                model: isVerified ? null : classModel, // Only AI has model
+                confidence: isVerified ? 1.0 : (0.5 + Math.random() * 0.45) // 0.5 ~ 0.95
+            }
+        });
+
+        // 2. Chance for Secondary Category (Pure AI suggestion usually)
+        if (Math.random() > 0.7) {
+            const secondary = rand(categories.filter((c:any) => c.id !== mainCategory.id));
+            await prisma.requirementClassification.create({
+                data: {
+                    requirementId: req.id,
+                    categoryId: secondary.id,
+                    source: 'AI',
+                    model: rand(models),
+                    confidence: 0.3 + Math.random() * 0.4
+                }
+            });
+        }
+
+        generatedReqs.push(req);
+        if (i % 20 === 0) console.log(`Generated ${i} requirements...`);
+    }
+
+    console.log(`Successfully generated ${generatedReqs.length} realistic requirements.`);
 }
 
 main()

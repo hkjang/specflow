@@ -23,8 +23,14 @@ export class ProductController {
         const where: any = { status: 'APPROVED' };
 
         if (industry) {
-            // Assuming categories/industries link. For now simpler text match or relation
-            // Real logic: where categories some code startsWith industry
+            // Assuming categories/industries link via classifications relation
+            where.classifications = {
+                some: {
+                    category: {
+                        code: { startsWith: industry } // Or exact match depending on data
+                    }
+                }
+            };
         }
 
         // Simple fetch for MVP

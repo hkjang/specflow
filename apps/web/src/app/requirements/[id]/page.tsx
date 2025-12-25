@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { api, knowledgeApi } from '@/lib/api';
 // Wrapper for params to handle async nature of Next.js 15+ or just standard hook
 import { useParams } from 'next/navigation';
-import { Save, ArrowLeft, History, FileText } from 'lucide-react';
+import { Save, ArrowLeft, History, FileText, Tag, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { CommentSection } from '@/components/requirements/CommentSection';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -224,6 +224,35 @@ export default function RequirementDetail() {
                                 <span className="font-medium text-slate-700 group-hover:text-blue-600 transition-colors cursor-pointer">
                                     {req.menu?.name || '-'}
                                 </span>
+                            </div>
+                        </div>
+                        
+                        {/* Classifications / Tags */}
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                             <div className="flex items-center gap-2 mb-3">
+                                <Tag className="h-4 w-4 text-slate-400" />
+                                <span className="text-sm font-bold text-slate-700">분류 태그 (Tags)</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {req.classifications?.map((c: any) => (
+                                    <div 
+                                        key={c.id} 
+                                        className={`
+                                            flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border
+                                            ${c.source === 'AI' 
+                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 border-dashed' 
+                                                : 'bg-slate-50 text-slate-600 border-slate-200'}
+                                            transition-colors hover:bg-opacity-80
+                                        `}
+                                        title={c.source === 'AI' ? `AI Classified (Confidence: ${(c.confidence * 100).toFixed(0)}%)` : 'Human Verified'}
+                                    >
+                                        {c.source === 'AI' && <Sparkles className="h-3 w-3" />}
+                                        {c.category?.name}
+                                    </div>
+                                ))}
+                                {(!req.classifications || req.classifications.length === 0) && (
+                                    <span className="text-xs text-slate-400">등록된 태그가 없습니다.</span>
+                                )}
                             </div>
                         </div>
                     </div>

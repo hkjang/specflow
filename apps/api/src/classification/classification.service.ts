@@ -157,7 +157,7 @@ export class ClassificationService {
     const categories = await this.prisma.category.findMany({
       include: {
         _count: {
-          select: { requirements: true }
+          select: { classifications: true }
         }
       }
     });
@@ -166,7 +166,7 @@ export class ClassificationService {
       id: c.id,
       name: c.name,
       code: c.code,
-      count: c._count.requirements,
+      count: c._count.classifications,
       accuracy: Math.random() * 20 + 80 // Mock 80-100% accuracy
     }));
   }
@@ -176,8 +176,13 @@ export class ClassificationService {
     const req = await this.prisma.requirement.update({
       where: { id: requirementId },
       data: {
-        categories: {
-          set: categoryIds.map(id => ({ id }))
+        classifications: {
+          deleteMany: {}, // Clear existing
+          create: categoryIds.map(id => ({
+             categoryId: id,
+             source: 'HUMAN',
+             confidence: 1.0
+          }))
         }
       }
     });

@@ -129,6 +129,19 @@ export class ExtractionService {
                     creatorId: creatorId, 
                     sourceId: draft.sourceId,
                     status: 'DRAFT', // Initial status
+                    classifications: {
+                        create: draft.type ? [{ 
+                            // TODO: Resolve draft.type string (e.g. "FUNC") to Category ID
+                            // For now, we skip or need a CategoryService lookup.
+                            // Assuming we might have category info in metadata or need to search.
+                            // Let's defer strict mapping or try to find one.
+                            // Fallback: If draft.type matches a Category Code
+                             category: { 
+                                 connect: { code: draft.type } 
+                             },
+                             source: 'AI'
+                        }] : undefined
+                    }
                 }
             });
             createdRequirements.push(req);

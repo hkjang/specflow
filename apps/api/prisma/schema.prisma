@@ -109,7 +109,8 @@ model Category {
   parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children    Category[] @relation("CategoryHierarchy")
 
-  requirements Requirement[]
+  // requirements Requirement[] // DEPRECATED
+  classifications RequirementClassification[]
   externalRequirements ExternalRequirement[]
 }
 
@@ -157,7 +158,8 @@ model Requirement {
   menu       Menu?     @relation(fields: [menuId], references: [id])
   
   // Changed to Many-to-Many for multi-label classification
-  categories Category[]
+  // categories Category[] // DEPRECATED: Use classifications
+  classifications RequirementClassification[]
 
   // Relations
   parentId  String?
@@ -465,6 +467,27 @@ model AdminAlert {
 
 
 // AI Integration
+enum ClassificationSource {
+  AI
+  HUMAN
+}
+
+model RequirementClassification {
+  id            String      @id @default(uuid())
+  requirementId String
+  requirement   Requirement @relation(fields: [requirementId], references: [id])
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id])
+
+  source        ClassificationSource
+  model         String?     // e.g. "gpt-4o", "llama-3"
+  confidence    Float       @default(1.0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([requirementId, categoryId])
+}
+
 enum AiProviderType {
   OPENAI
   OLLAMA

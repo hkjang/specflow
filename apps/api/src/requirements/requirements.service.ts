@@ -46,8 +46,15 @@ export class RequirementsService {
         parentId: parentId || undefined,
         sourceId: sourceId || undefined,
 
-        categories: {
-          connect: categoryConnect
+        // categories: { // DEPRECATED
+        //   connect: categoryConnect
+        // },
+        classifications: {
+          create: categoryConnect.map(c => ({
+            categoryId: c.id,
+            source: 'AI', // Default for auto-creation
+            confidence: classificationResult.confidence
+          }))
         },
         trustGrade: classificationResult.confidence,
         aiMetadata: {
@@ -139,7 +146,10 @@ export class RequirementsService {
           business: true,
           function: true,
           menu: true,
-          categories: true,
+          // categories: true, // DEPRECATED
+          classifications: {
+             include: { category: true }
+          },
           qualityMetric: true,
         }
       }),

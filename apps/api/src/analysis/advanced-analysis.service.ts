@@ -53,13 +53,17 @@ export class AdvancedAnalysisService {
         // 2. Check coverage
         const currentreqs = await this.prisma.requirement.findMany({
             where: { id: { in: requirementIds } },
-            include: { categories: true }
+            include: { 
+                classifications: {
+                    include: { category: true }
+                }
+            }
         });
 
         const coveredFunctionCodes = new Set<string>();
         currentreqs.forEach(r => {
-            r.categories.forEach(c => {
-                if (c.level === 'Function') coveredFunctionCodes.add(c.code!);
+            r.classifications.forEach(c => {
+                if (c.category.level === 'Function') coveredFunctionCodes.add(c.category.code!);
             });
         });
 

@@ -18,11 +18,13 @@ async function main() {
     console.log(`Found ${providers.length} AI Providers:`);
     console.table(providers);
 
-    const ollama = providers.find((p: any) => p.type === 'OLLAMA');
-    if (ollama && ollama.models.includes('gpt-oss:20b')) {
-        console.log('SUCCESS: Ollama provider with gpt-oss:20b found.');
+    const ollamaGpt = providers.find((p: any) => p.name === 'Ollama (gpt-oss:20b)');
+    const ollamaQwen = providers.find((p: any) => p.name === 'Ollama (qwen3:8b)');
+
+    if (ollamaGpt && ollamaQwen) {
+        console.log('SUCCESS: Separate Ollama providers found.');
     } else {
-        console.error('FAILURE: Ollama provider with gpt-oss:20b NOT found.');
+        console.error('FAILURE: Separate Ollama providers NOT found.');
     }
 }
 
