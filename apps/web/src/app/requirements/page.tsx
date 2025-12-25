@@ -190,7 +190,10 @@ export default function RequirementsPage() {
                                     {req.business?.name || <span className="text-slate-300">-</span>}
                                 </td>
                                 <td className="px-5 py-4 text-xs text-slate-400">
-                                    {new Date(req.updatedAt).toLocaleDateString()}
+                                    {new Date(req.updatedAt).toLocaleString('ko-KR', { 
+                                        year: 'numeric', month: '2-digit', day: '2-digit',
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                    })}
                                 </td>
                             </tr>
                         ))}
