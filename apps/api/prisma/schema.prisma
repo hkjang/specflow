@@ -577,6 +577,23 @@ model PartnerProposal {
   updatedAt DateTime @updatedAt
 }
 
+
+
+model Partner {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // "Technology", "Consulting", "Resource"
+  status      String   @default("Pending") // "Active", "Pending", "Inactive"
+  projects    Int      @default(0) // Cache or calculated relation? For now simple field.
+  
+  description String?  @db.Text
+  email       String?
+  region      String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model SystemSetting {
   key       String   @id
   value     String

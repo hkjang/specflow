@@ -49,6 +49,14 @@ export const marketplaceApi = {
     delete: (id: string) => api.delete(`/ai/marketplace/${id}`),
 };
 
+export const partnerApi = {
+    getAll: () => api.get('/partner/registry'),
+    getStats: () => api.get('/partner/registry/stats'),
+    create: (data: any) => api.post('/partner/registry', data),
+    update: (id: string, data: any) => api.patch(`/partner/registry/${id}`, data),
+    delete: (id: string) => api.delete(`/partner/registry/${id}`),
+};
+
 export const adminApi = {
     getOverallStats: () => api.get('/dashboard/admin/stats'),
     getQualityMetrics: () => api.get('/dashboard/admin/quality'),
