@@ -53,6 +53,7 @@ model Project {
 
   businesses Business[]
   context    ProjectContext?
+  partners   Partner[]
   // Global settings or other relations can go here
 }
 
@@ -584,7 +585,8 @@ model Partner {
   name        String
   type        String   // "Technology", "Consulting", "Resource"
   status      String   @default("Pending") // "Active", "Pending", "Inactive"
-  projects    Int      @default(0) // Cache or calculated relation? For now simple field.
+  
+  projects    Project[]
   
   description String?  @db.Text
   email       String?

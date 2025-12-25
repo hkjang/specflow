@@ -23,6 +23,7 @@ import { ExternalApiModule } from './product/product.module';
 import { GovernanceModule } from './governance/governance.module';
 import { EnterpriseModule } from './enterprise/enterprise.module';
 import { AgentModule } from './agent/agent.module';
+import { ProjectModule } from './project/project.module';
 
 @Module({
   imports: [
@@ -49,8 +50,12 @@ import { AgentModule } from './agent/agent.module';
     GovernanceModule,
     EnterpriseModule,
     AgentModule,
+    ProjectModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global Filters/Pipes/Guards can be provided here
+  ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
     Home, List, Settings, Users, FileText, Brain,
     LayoutDashboard, Library, Globe, Activity, Database, Shield,
-    ChevronDown, ChevronRight, Layers, CreditCard
+    ChevronDown, ChevronRight, Layers, CreditCard, Folder
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -29,6 +29,7 @@ const userNavItems: NavItem[] = [
     { name: '분류/태깅', engName: 'Classification', href: '/classification', icon: FileText, actionDesc: 'Tag and organize specs' },
     { name: '사용자', engName: 'Users', href: '/users', icon: Users },
     { name: 'AI 생성', engName: 'Generation', href: '/generation', icon: Globe, actionDesc: 'Generate content' },
+    { name: '프로젝트', engName: 'Projects', href: '/projects', icon: Folder, actionDesc: 'Manage Projects' },
     { name: '지식 자산', engName: 'Knowledge', href: '/knowledge', icon: Library, actionDesc: 'Knowledge Base' },
     { name: '마켓플레이스', engName: 'Marketplace', href: '/marketplace', icon: CreditCard },
     { name: '파트너 포털', engName: 'Partner', href: '/partner', icon: Users },

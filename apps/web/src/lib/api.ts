@@ -124,4 +124,12 @@ export const classificationApi = {
     getStats: () => api.get('/classification/stats'),
 };
 
+export const projectApi = {
+    getAll: () => api.get('/projects'),
+    getOne: (id: string) => api.get(`/projects/${id}`),
+    create: (data: any) => api.post('/projects', data),
+    update: (id: string, data: any) => api.patch(`/projects/${id}`, data),
+    delete: (id: string) => api.delete(`/projects/${id}`),
+};
+
 

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Users, FileText, CheckCircle, Trash2, Edit2, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { partnerApi } from '@/lib/api';
+import { partnerApi, projectApi } from '@/lib/api';
 
 export default function PartnerPage() {
     const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -16,6 +16,7 @@ export default function PartnerPage() {
     const [stats, setStats] = useState({ total: 0, active: 0 });
     const [loading, setLoading] = useState(false);
     const [selectedPartner, setSelectedPartner] = useState<any>(null);
+    const [allProjects, setAllProjects] = useState<any[]>([]);
 
     useEffect(() => {
         loadData();
@@ -23,12 +24,14 @@ export default function PartnerPage() {
 
     const loadData = async () => {
         try {
-            const [pRes, sRes] = await Promise.all([
+            const [pRes, sRes, projRes] = await Promise.all([
                 partnerApi.getAll(),
-                partnerApi.getStats()
+                partnerApi.getStats(),
+                projectApi.getAll()
             ]);
             setPartners(pRes.data);
             setStats(sRes.data);
+            setAllProjects(projRes.data);
         } catch(e) { console.error(e); }
     };
 
@@ -39,9 +42,13 @@ export default function PartnerPage() {
         const type = (form.elements.namedItem('type') as HTMLInputElement).value;
         const email = (form.elements.namedItem('email') as HTMLInputElement).value;
         
+        // Collect checked projects
+        const checkedProjects = Array.from(form.querySelectorAll('input[name="projectIds"]:checked'))
+            .map((input: any) => input.value);
+        
         try {
             setLoading(true);
-            await partnerApi.create({ name, type, email });
+            await partnerApi.create({ name, type, email, projectIds: checkedProjects });
             await loadData();
             setShowRegisterModal(false);
             form.reset();
@@ -62,9 +69,12 @@ export default function PartnerPage() {
         const email = (form.elements.namedItem('edit_email') as HTMLInputElement).value;
         const status = (form.elements.namedItem('edit_status') as HTMLInputElement).value;
 
+        const checkedProjects = Array.from(form.querySelectorAll('input[name="edit_projectIds"]:checked'))
+            .map((input: any) => input.value);
+
         try {
             setLoading(true);
-            await partnerApi.update(selectedPartner.id, { name, type, email, status });
+            await partnerApi.update(selectedPartner.id, { name, type, email, status, projectIds: checkedProjects });
             await loadData();
             setShowEditModal(false);
             setSelectedPartner(null);
@@ -125,7 +135,7 @@ export default function PartnerPage() {
                         <FileText className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{partners.reduce((sum, p) => sum + (p.projects || 0), 0)}</div>
+                        <div className="text-2xl font-bold">{partners.reduce((sum, p) => sum + (p.projects?.length || 0), 0)}</div>
                         <p className="text-xs text-muted-foreground">협업 프로젝트 총계</p>
                     </CardContent>
                 </Card>
@@ -160,7 +170,14 @@ export default function PartnerPage() {
                                             {partner.status}
                                         </span>
                                     </h4>
-                                    <p className="text-sm text-gray-500">{partner.type} | Projects: {partner.projects || 0} | {partner.email || 'No Email'}</p>
+                                    <p className="text-sm text-gray-500">{partner.type} | Projects: {partner.projects?.length || 0} | {partner.email || 'No Email'}</p>
+                                    {partner.projects && partner.projects.length > 0 && (
+                                        <div className="mt-1 flex gap-1 flex-wrap">
+                                            {partner.projects.map((p: any) => (
+                                                <span key={p.id} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{p.name}</span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                      {partner.status !== 'Active' && (
@@ -209,6 +226,17 @@ export default function PartnerPage() {
                                 <option value="Legal">Legal</option>
                             </select>
                         </div>
+                        <div>
+                            <label className="text-sm font-medium">참여 프로젝트 (Projects)</label>
+                            <div className="mt-1 border rounded-md p-2 h-24 overflow-y-auto space-y-1">
+                                {allProjects.map(project => (
+                                    <div key={project.id} className="flex items-center space-x-2">
+                                        <input type="checkbox" name="projectIds" value={project.id} id={`reg-proj-${project.id}`} />
+                                        <label htmlFor={`reg-proj-${project.id}`} className="text-sm cursor-pointer">{project.name}</label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setShowRegisterModal(false)}>취소</Button>
                             <Button type="submit" disabled={loading}>등록</Button>
@@ -251,6 +279,23 @@ export default function PartnerPage() {
                                         <option value="Active">Active</option>
                                         <option value="Inactive">Inactive</option>
                                     </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">참여 프로젝트 (Projects)</label>
+                                <div className="mt-1 border rounded-md p-2 h-24 overflow-y-auto space-y-1">
+                                    {allProjects.map(project => (
+                                        <div key={project.id} className="flex items-center space-x-2">
+                                            <input 
+                                                type="checkbox" 
+                                                name="edit_projectIds" 
+                                                value={project.id} 
+                                                id={`edit-proj-${project.id}`} 
+                                                defaultChecked={selectedPartner.projects?.some((p: any) => p.id === project.id)}
+                                            />
+                                            <label htmlFor={`edit-proj-${project.id}`} className="text-sm cursor-pointer">{project.name}</label>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                             <DialogFooter>

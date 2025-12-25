@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Sidebar } from '@/components/layout/sidebar';
 import { AiGlobalAssistant } from '@/components/ai/AiGlobalAssistant';
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -24,6 +25,7 @@ export default function RootLayout({
                     <main className="flex-1 overflow-y-auto p-8 relative">
                         {children}
                         <AiGlobalAssistant />
+                        <Toaster />
                     </main>
                 </div>
             </body>

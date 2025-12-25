@@ -263,6 +263,7 @@ async function seedExplanations() {
     console.log('Seeding Explanations Completed.');
 
     await seedOperationalData();
+    await seedProjectsAndPartners();
 }
 
 
@@ -375,6 +376,140 @@ async function seedAiProviders() {
         }
     }
     console.log('Seeding AI Providers Completed.');
+}
+
+async function seedProjectsAndPartners() {
+    console.log('Seeding Projects and Partners...');
+    const p = prisma as any;
+
+    // 0. Ensure Organizations exist
+    const orgs = [
+        { id: 'org-001', name: 'Acme Corp', domain: 'acme.com', plan: 'ENTERPRISE' },
+        { id: 'org-002', name: 'BioTech Inc', domain: 'biotech.com', plan: 'STANDARD' }
+    ];
+
+    for (const org of orgs) {
+        await p.organization.upsert({
+            where: { id: org.id },
+            update: {},
+            create: org
+        });
+    }
+
+    // 1. Projects
+    const projectsData = [
+        { name: '차세대 뱅킹 시스템 구축', description: 'MSA 기반의 코어 뱅킹 현대화 프로젝트', organizationId: 'org-001' },
+        { name: '글로벌 물류 플랫폼 고도화', description: '실시간 트래킹 및 AI 최적화 물류 시스템', organizationId: 'org-001' },
+        { name: '공공 데이터 포털 리뉴얼', description: '대국민 서비스 접근성 향상 및 데이터 개방 확대', organizationId: 'org-001' },
+        { name: 'AI 기반 신약 개발 플랫폼', description: '바이오 데이터 분석 및 후보 물질 발굴 가속화', organizationId: 'org-002' },
+        { name: '스마트 팩토리 통합 관제', description: 'IoT 센서 연동 및 실시간 생산 라인 모니터링', organizationId: 'org-002' }
+    ];
+
+    const projects: any[] = [];
+    for (const proj of projectsData) {
+        // Upsert to avoid duplicates
+        const existing = await p.project.findFirst({ where: { name: proj.name } });
+        if (existing) {
+            projects.push(existing);
+        } else {
+            console.log(`Creating Project: ${proj.name}`);
+            const newProj = await p.project.create({ data: proj });
+            projects.push(newProj);
+        }
+    }
+
+    // 2. Partners
+    const partnersData = [
+        { 
+            name: 'Samsung SDS', type: 'Technology', status: 'Active', 
+            email: 'contact@samsung.com', region: 'Seoul', 
+            description: 'Global IT Solutions Provider' 
+        },
+        { 
+            name: 'LG CNS', type: 'Technology', status: 'Active', 
+            email: 'biz@lgcns.com', region: 'Seoul', 
+            description: 'Digital Transformation Partner' 
+        },
+        { 
+            name: 'SK C&C', type: 'Technology', status: 'Active', 
+            email: 'info@skcc.com', region: 'Seoul', 
+            description: 'Smart ICT Business Partner' 
+        },
+        { 
+            name: 'PwC Consulting', type: 'Consulting', status: 'Active', 
+            email: 'kr_consulting@pwc.com', region: 'Global', 
+            description: 'Strategy & Management Consulting' 
+        },
+        { 
+            name: 'Deloitte Korea', type: 'Consulting', status: 'Pending', 
+            email: 'audit@deloitte.com', region: 'Global', 
+            description: 'Audit, Consulting, Tax, Advisory' 
+        },
+        { 
+            name: 'AWS Korea', type: 'Technology', status: 'Active', 
+            email: 'aws-kr@amazon.com', region: 'Global', 
+            description: 'Cloud Infrastructure Provider' 
+        },
+        { 
+            name: 'Wanted HRLab', type: 'Resource', status: 'Active', 
+            email: 'hr@wanted.com', region: 'Seoul', 
+            description: 'Tech Talent Application Platform' 
+        }
+    ];
+
+    const partners: any[] = [];
+    for (const part of partnersData) {
+        const existing = await p.partner.findFirst({ where: { name: part.name } });
+        if (existing) {
+            partners.push(existing);
+        } else {
+            console.log(`Creating Partner: ${part.name}`);
+            const newPart = await p.partner.create({ data: part });
+            partners.push(newPart);
+        }
+    }
+
+    // 3. Link Partners to Projects (Randomly for Demo)
+    // - 차세대 뱅킹: SDS, LG CNS, AWS, PwC
+    // - 물류 플랫폼: SK C&C, AWS
+    // - 공공 데이터: LG CNS
+    // - AI 신약: Deloitte, AWS
+    
+    // Helper to find ID by name
+    const getP = (name: string) => partners.find((x: any) => x.name === name);
+    const getProj = (name: string) => projects.find((x: any) => x.name === name);
+
+    const links = [
+        { proj: '차세대 뱅킹 시스템 구축', parts: ['Samsung SDS', 'PwC Consulting', 'AWS Korea'] },
+        { proj: '글로벌 물류 플랫폼 고도화', parts: ['SK C&C', 'AWS Korea', 'Wanted HRLab'] },
+        { proj: '공공 데이터 포털 리뉴얼', parts: ['LG CNS'] },
+        { proj: 'AI 기반 신약 개발 플랫폼', parts: ['Deloitte Korea', 'AWS Korea', 'Samsung SDS'] },
+        { proj: '스마트 팩토리 통합 관제', parts: ['SK C&C', 'LG CNS'] }
+    ];
+
+    for (const link of links) {
+        const targetProj = getProj(link.proj);
+        if (!targetProj) continue;
+
+        const targetPartnerIds = link.parts
+            .map(name => getP(name)?.id)
+            .filter(id => !!id)
+            .map(id => ({ id }));
+
+        if (targetPartnerIds.length > 0) {
+            await p.project.update({
+                where: { id: targetProj.id },
+                data: {
+                    partners: {
+                        connect: targetPartnerIds
+                    }
+                }
+            });
+            console.log(`Linked ${link.parts.length} partners to ${link.proj}`);
+        }
+    }
+
+    console.log('Seeding Projects and Partners Completed.');
 }
 
 main()

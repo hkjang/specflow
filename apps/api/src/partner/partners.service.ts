@@ -7,6 +7,7 @@ export class PartnersService {
 
     async findAll() {
         return (this.prisma as any).partner.findMany({
+            include: { projects: true },
             orderBy: { createdAt: 'desc' }
         });
     }
@@ -17,18 +18,26 @@ export class PartnersService {
                 name: data.name,
                 type: data.type,
                 status: 'Pending',
-                projects: 0,
                 description: data.description,
                 email: data.email,
-                region: data.region
+                region: data.region,
+                projects: data.projectIds ? {
+                    connect: data.projectIds.map((id: string) => ({ id }))
+                } : undefined
             }
         });
     }
 
     async update(id: string, data: any) {
+        const { projectIds, ...rest } = data;
         return (this.prisma as any).partner.update({
             where: { id },
-            data
+            data: {
+                ...rest,
+                projects: projectIds ? {
+                    set: projectIds.map((pid: string) => ({ id: pid }))
+                } : undefined
+            }
         });
     }
 
