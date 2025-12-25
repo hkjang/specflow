@@ -74,4 +74,50 @@ export class ExtractionService {
 
         return requirement;
     }
+
+    async getAllJobs() {
+        // Fetch all extraction jobs with necessary relations for dashboard
+        return this.prisma.extractionJob.findMany({
+            orderBy: { createdAt: 'desc' },
+            include: {
+                source: {
+                    select: {
+                        id: true,
+                        type: true,
+                        metadata: true
+                    }
+                },
+                drafts: {
+                    select: {
+                        id: true,
+                        status: true,
+                        confidence: true
+                    }
+                }
+            }
+        });
+    }
+
+    async deleteJob(id: string) {
+        // Delete related drafts first (or rely on cascade if configured, but safe side here)
+        // Prisma schema might not have cascade on all, so let's check
+        // Assuming cascade delete is set on Schema or we delete manually.
+        
+        // Manual cleanup to ensure everything is gone
+        const job = await this.prisma.extractionJob.findUnique({ where: { id } });
+        if (!job) throw new Error('Job not found');
+
+        // Delete drafts
+        await this.prisma.requirementDraft.deleteMany({ where: { jobId: id } });
+        
+        // Delete job
+        await this.prisma.extractionJob.delete({ where: { id } });
+        
+        // Optionally delete source if not shared? 
+        // For now, let's keep source or delete it if 1:1. 
+        // ExtractionSource -> ExtractionJob is 1:N potentially, but usually 1:1 in this flow.
+        // Let's safe-delete source if no other jobs (optional logic, skipping for simplicity)
+        
+        return { message: 'Job deleted successfully' };
+    }
 }

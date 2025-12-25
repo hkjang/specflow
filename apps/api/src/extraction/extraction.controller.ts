@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UploadedFile, UseInterceptors, Get, Param } from '@nestjs/common';
+import { Controller, Post, Body, UploadedFile, UseInterceptors, Get, Param, Delete } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExtractionService } from './extraction.service';
 
@@ -9,15 +9,22 @@ export class ExtractionController {
     @Post('upload')
     @UseInterceptors(FileInterceptor('file'))
     async uploadFile(@UploadedFile() file: Express.Multer.File, @Body() body: { projectId: string; perspective?: string }) {
-        if (!file) throw new Error('No file provided');
+        try {
+            if (!file) throw new Error('No file provided');
 
-        // Ingestion
-        const source = await this.extractionService.ingestFile(file, body.projectId, body.perspective);
+            // Ingestion
+            const source = await this.extractionService.ingestFile(file, body.projectId, body.perspective);
 
-        // Start Processing (Async)
-        this.extractionService.startProcessing(source.id);
+            // Start Processing (Async)
+            this.extractionService.startProcessing(source.id);
 
-        return { message: 'File uploaded and processing started', sourceId: source.id };
+            return { message: 'File uploaded and processing started', sourceId: source.id };
+        } catch (e) {
+            console.error('Upload Failed:', e);
+            throw e; // Use Filter or let it bubble, but console.error helps if I could read it
+            // Better: Return 400/500 with message
+            // throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @Post('text')
@@ -34,5 +41,15 @@ export class ExtractionController {
     @Post('drafts/:id/merge')
     async mergeDraft(@Param('id') id: string, @Body() body: { projectId: string }) {
         return this.extractionService.mergeDraft(id, body.projectId);
+    }
+
+    @Get('jobs')
+    async getAllJobs() {
+        return this.extractionService.getAllJobs();
+    }
+
+    @Delete('jobs/:id')
+    async deleteJob(@Param('id') id: string) {
+        return this.extractionService.deleteJob(id);
     }
 }

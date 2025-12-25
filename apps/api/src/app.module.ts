@@ -24,6 +24,7 @@ import { GovernanceModule } from './governance/governance.module';
 import { EnterpriseModule } from './enterprise/enterprise.module';
 import { AgentModule } from './agent/agent.module';
 import { ProjectModule } from './project/project.module';
+import { ExtractionModule } from './extraction/extraction.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ProjectModule } from './project/project.module';
     EnterpriseModule,
     AgentModule,
     ProjectModule,
+    ExtractionModule,
   ],
   controllers: [AppController],
   providers: [

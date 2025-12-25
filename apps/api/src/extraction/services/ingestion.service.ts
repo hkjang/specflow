@@ -11,8 +11,13 @@ export class IngestionService {
 
     if (type === 'FILE' && Buffer.isBuffer(content)) {
       if (metadata?.mimetype === 'application/pdf') {
-        const data = await pdf(content);
-        extractedContent = data.text;
+        try {
+            const data = await pdf(content);
+            extractedContent = data.text;
+        } catch (e) {
+            console.error('PDF Parse Error:', e);
+            extractedContent = 'PDF Parsing Failed: ' + (e instanceof Error ? e.message : String(e));
+        }
       } else {
         extractedContent = content.toString('utf-8');
       }
