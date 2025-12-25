@@ -118,7 +118,11 @@ export class ClassificationService {
   async getCategories() {
     return this.prisma.category.findMany({
       orderBy: { code: 'asc' },
-      include: { children: true }
+      include: { 
+          children: {
+              include: { children: true }
+          } 
+      }
     });
   }
 
@@ -132,6 +136,19 @@ export class ClassificationService {
         description: data.description
       }
     });
+  }
+
+  async updateCategory(id: string, data: { code?: string; name?: string; level?: string; description?: string }) {
+      return this.prisma.category.update({
+          where: { id },
+          data
+      });
+  }
+
+  async deleteCategory(id: string) {
+      return this.prisma.category.delete({
+          where: { id }
+      });
   }
 
   async getClassificationStats() {

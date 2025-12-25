@@ -93,9 +93,12 @@ export const extractionApi = {
 };
 
 export const classificationApi = {
-    getBusiness: (params?: any) => api.get('/classification/business', { params }),
-    createBusiness: (data: any) => api.post('/classification/business', data),
+    getBusiness: (params?: any) => api.get('/classification/business', { params }), // Legacy
+    createBusiness: (data: any) => api.post('/classification/business', data), // Legacy
     getCategories: () => api.get('/classification/categories'),
+    createCategory: (data: { code: string; name: string; level: string; description?: string }) => api.post('/classification/categories', data),
+    updateCategory: (id: string, data: any) => api.patch(`/classification/categories/${id}`, data),
+    deleteCategory: (id: string) => api.delete(`/classification/categories/${id}`),
     autoClassify: (data: { projectId: string; providerId: string }) => api.post('/classification/auto', data),
     getStats: () => api.get('/classification/stats'),
 };

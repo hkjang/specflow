@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Patch, Delete, Param } from '@nestjs/common';
 import { ClassificationService } from './classification.service';
 
 @Controller('classification')
@@ -33,6 +33,16 @@ export class ClassificationController {
   @Post('categories')
   createCategory(@Body() body: { code: string; name: string; level: string; parentId?: string; description?: string }) {
     return this.classificationService.createCategory(body);
+  }
+
+  @Patch('categories/:id')
+  updateCategory(@Param('id') id: string, @Body() body: any) {
+      return this.classificationService.updateCategory(id, body);
+  }
+
+  @Delete('categories/:id')
+  deleteCategory(@Param('id') id: string) {
+      return this.classificationService.deleteCategory(id);
   }
 
   @Get('stats')
