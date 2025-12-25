@@ -188,10 +188,43 @@ export class ExtractionService {
     }
 
     async updateDraftStatus(id: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) {
-        return this.prisma.requirementDraft.update({
+        // Update the draft
+        const updatedDraft = await this.prisma.requirementDraft.update({
             where: { id },
-            data
+            data,
+            include: { source: true }
         });
+        
+        // If status changed to APPROVED, create a Requirement
+        if (data.status === 'APPROVED') {
+            const draft = updatedDraft;
+            const code = `REQ-AUTO-${Date.now().toString(36).toUpperCase()}`;
+            
+            await this.prisma.requirement.create({
+                data: {
+                    code,
+                    title: draft.title || '자동 추출 요건',
+                    content: draft.content || draft.originalText || '',
+                    type: draft.type || 'FUNCTIONAL',
+                    status: 'DRAFT',
+                    maturity: 'DRAFT',
+                    aiMetadata: {
+                        create: {
+                            modelName: 'Crawler Extraction',
+                            reasoning: `자동 추출됨. 신뢰도: ${draft.confidence ? Math.round(draft.confidence * 100) : 'N/A'}%`,
+                            sourcePath: {
+                                sourceId: draft.sourceId,
+                                originalText: draft.originalText?.slice(0, 500)
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log(`[EXTRACTION] Created requirement ${code} from approved draft ${id}`);
+        }
+        
+        return updatedDraft;
     }
 
     async batchApproveDrafts(jobId: string) {
