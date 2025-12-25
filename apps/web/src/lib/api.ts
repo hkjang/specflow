@@ -42,6 +42,13 @@ export const knowledgeApi = {
     generateProposal: (requirementIds: string[], partnerName: string) => api.post('/generation/proposal', { requirementIds, partnerName }),
 };
 
+export const marketplaceApi = {
+    getAll: () => api.get('/ai/marketplace'),
+    create: (data: any) => api.post('/ai/marketplace', data),
+    update: (id: string, data: any) => api.patch(`/ai/marketplace/${id}`, data),
+    delete: (id: string) => api.delete(`/ai/marketplace/${id}`),
+};
+
 export const adminApi = {
     getOverallStats: () => api.get('/dashboard/admin/stats'),
     getQualityMetrics: () => api.get('/dashboard/admin/quality'),

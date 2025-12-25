@@ -485,6 +485,21 @@ model AiProvider {
   updatedAt   DateTime       @updatedAt
 }
 
+model MarketplaceItem {
+  id          String   @id @default(uuid())
+  name        String
+  provider    String   // e.g. "LawTech Inc.", "My Organization"
+  type        String   // "Model", "Dataset", "API"
+  description String?  @db.Text
+  price       String?  // "Free", "$49/mo"
+  rating      Float    @default(0.0)
+  downloads   Int      @default(0)
+  image       String?  // Seed for avatar or URL
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model AiLog {
   id              String   @id @default(uuid())
   providerName    String

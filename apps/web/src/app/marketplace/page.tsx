@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,37 +10,59 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, Plus, Star, Download, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Star, Download, TrendingUp, ShieldCheck, Trash2, Edit2 } from 'lucide-react';
+import { marketplaceApi } from '@/lib/api';
 
 export default function MarketplacePage() {
-    const [services, setServices] = useState([
-        { id: 1, name: 'Legal OCR Pro', provider: 'LawTech Inc.', rating: 4.8, type: 'API', downloads: 1200, price: '$49/mo', image: 'LT' },
-        { id: 2, name: 'Medical Terminology DB', provider: 'MediSoft', rating: 4.9, type: 'Dataset', downloads: 850, price: 'Free', image: 'MS' },
-        { id: 3, name: 'Auto-Translator v2', provider: 'SpecFlow Native', rating: 4.5, type: 'Model', downloads: 3000, price: 'Usage', image: 'SF' },
-        { id: 4, name: 'Financial Entity Extractor', provider: 'FinTech AI', rating: 4.7, type: 'Model', downloads: 520, price: '$99/mo', image: 'FT' },
-        { id: 5, name: 'Risk Analysis Ruleset', provider: 'Compliance Corp', rating: 4.6, type: 'Dataset', downloads: 400, price: '$199', image: 'CC' },
-    ]);
+    const [services, setServices] = useState<any[]>([]);
     const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const handleAddService = (e: React.FormEvent) => {
+    useEffect(() => {
+        fetchServices();
+    }, []);
+
+    const fetchServices = async () => {
+        try {
+            const res = await marketplaceApi.getAll();
+            setServices(res.data);
+        } catch (err) { console.error(err); }
+    };
+
+    const handleAddService = async (e: React.FormEvent) => {
         e.preventDefault();
         const form = e.target as HTMLFormElement;
         const name = (form.elements.namedItem('name') as HTMLInputElement).value;
         const type = (form.elements.namedItem('type') as HTMLInputElement).value;
         const price = (form.elements.namedItem('price') as HTMLInputElement).value;
         
-        setServices([{
-            id: services.length + 1,
-            name,
-            provider: 'My Organization',
-            rating: 5.0,
-            type,
-            downloads: 0,
-            price: price || 'Free',
-            image: 'MY'
-        }, ...services]);
-        setOpen(false);
+        try {
+            setLoading(true);
+            await marketplaceApi.create({
+                name,
+                type,
+                price: price || 'Free',
+                provider: 'My Organization',
+                description: 'New AI Service', 
+                image: (Math.random() + 1).toString(36).substring(7)
+            });
+            await fetchServices();
+            setOpen(false);
+            form.reset();
+        } catch(err) {
+            alert('등록 실패');
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('정말 서비스를 삭제하시겠습니까?')) return;
+        try {
+            await marketplaceApi.delete(id);
+            fetchServices();
+        } catch(err) { alert('삭제 실패'); }
+    }
 
     return (
         <div className="space-y-6 container mx-auto max-w-7xl">
@@ -83,7 +105,7 @@ export default function MarketplacePage() {
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button type="submit">등록하기</Button>
+                                <Button type="submit" disabled={loading}>등록하기</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -107,16 +129,16 @@ export default function MarketplacePage() {
 
                 <TabsContent value="all" className="space-y-6">
                     <FeaturedSection />
-                    <ServiceGrid services={services} />
+                    <ServiceGrid services={services} onDelete={handleDelete} />
                 </TabsContent>
                 <TabsContent value="models">
-                    <ServiceGrid services={services.filter(s => s.type === 'Model')} />
+                    <ServiceGrid services={services.filter(s => s.type === 'Model')} onDelete={handleDelete} />
                 </TabsContent>
                 <TabsContent value="datasets">
-                    <ServiceGrid services={services.filter(s => s.type === 'Dataset')} />
+                    <ServiceGrid services={services.filter(s => s.type === 'Dataset')} onDelete={handleDelete} />
                 </TabsContent>
                 <TabsContent value="apis">
-                    <ServiceGrid services={services.filter(s => s.type === 'API')} />
+                    <ServiceGrid services={services.filter(s => s.type === 'API')} onDelete={handleDelete} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -161,11 +183,19 @@ function FeaturedSection() {
     );
 }
 
-function ServiceGrid({ services }: { services: any[] }) {
+function ServiceGrid({ services, onDelete }: { services: any[], onDelete: (id: string) => void }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map(svc => (
-                <Card key={svc.id} className="hover:shadow-lg transition-all duration-300 group border-slate-200 hover:border-indigo-200">
+                <Card key={svc.id} className="hover:shadow-lg transition-all duration-300 group border-slate-200 hover:border-indigo-200 relative">
+                    {/* Delete Button (Visible on Hover) */}
+                    <button 
+                         onClick={(e) => { e.stopPropagation(); onDelete(svc.id); }}
+                         className="absolute top-3 right-3 p-1.5 text-slate-300 hover:text-red-500 bg-white/80 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all z-10"
+                    >
+                         <Trash2 className="h-4 w-4" />
+                    </button>
+
                     <CardHeader className="pb-3">
                         <div className="flex justify-between items-start mb-2">
                             <Badge variant={
@@ -182,7 +212,7 @@ function ServiceGrid({ services }: { services: any[] }) {
                         <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10 border shadow-sm">
                                 <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${svc.image}`} />
-                                <AvatarFallback>{svc.image}</AvatarFallback>
+                                <AvatarFallback>{svc.image?.substring(0,2)}</AvatarFallback>
                             </Avatar>
                             <div>
                                 <CardTitle className="text-lg group-hover:text-indigo-700 transition-colors">{svc.name}</CardTitle>
@@ -194,7 +224,7 @@ function ServiceGrid({ services }: { services: any[] }) {
                         <div className="flex justify-between items-center text-sm text-slate-500 bg-slate-50 p-3 rounded-lg">
                             <div className="flex items-center">
                                 <Download className="h-4 w-4 mr-1.5 text-slate-400" />
-                                {svc.downloads.toLocaleString()} 설치
+                                {svc.downloads?.toLocaleString() || 0} 설치
                             </div>
                             <div className="flex items-center font-semibold text-slate-700">
                                 {svc.price}

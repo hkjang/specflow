@@ -156,6 +156,7 @@ export default function KnowledgeDashboard() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>자산명</TableHead>
+                                    <TableHead>관련 요건 (Linked Req)</TableHead>
                                     <TableHead>유형</TableHead>
                                     <TableHead>상태</TableHead>
                                     <TableHead>평가</TableHead>
@@ -166,7 +167,7 @@ export default function KnowledgeDashboard() {
                             <TableBody>
                                 {filteredAssets.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8 text-slate-400">
+                                        <TableCell colSpan={7} className="text-center py-8 text-slate-400">
                                             검색 결과가 없습니다.
                                         </TableCell>
                                     </TableRow>
@@ -175,12 +176,15 @@ export default function KnowledgeDashboard() {
                                     <TableRow key={asset.id} className="cursor-pointer hover:bg-slate-50 group">
                                         <TableCell className="font-medium">
                                             <div className="flex flex-col">
-                                                <a href={`/requirements/${asset.id}`} className="hover:underline text-indigo-700 font-semibold flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                                    {asset.title || asset.name}
-                                                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded border border-slate-200">REQLink</span>
-                                                </a>
+                                                <span>{asset.title || asset.name}</span>
                                                 <span className="text-[10px] text-slate-400">by {asset.creator?.name || asset.author || 'Unknown'}</span>
                                             </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <a href={`/requirements/${asset.id}`} className="inline-flex items-center hover:underline text-indigo-700 font-medium text-xs" onClick={e => e.stopPropagation()}>
+                                                <Code className="h-3 w-3 mr-1" />
+                                                {asset.code}
+                                            </a>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-1.5 text-xs text-slate-600">
