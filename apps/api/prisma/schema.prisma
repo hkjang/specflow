@@ -206,6 +206,9 @@ model Requirement {
   // Phase 7: Governance
   trustScore    TrustScore?
   approvalRequests ApprovalRequest[]
+  
+  // Drafts that were merged into this requirement
+  sourceDrafts  RequirementDraft[]
 }
 
 model RequirementHistory {
@@ -303,6 +306,16 @@ model RequirementDraft {
   rationale    String?  @db.Text
   
   status       DraftStatus @default(PENDING)
+  
+  // Track merged requirement
+  mergedRequirementId String?
+  mergedRequirement   Requirement? @relation(fields: [mergedRequirementId], references: [id])
+  
+  // AI-suggested metadata
+  suggestedDomain     String?   // 추천 비즈니스 도메인
+  suggestedFunction   String?   // 추천 기능
+  suggestedMenu       String?   // 추천 메뉴
+  suggestedTags       String[]  // 추천 분류 태그
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

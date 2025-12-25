@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IngestionService } from './services/ingestion.service';
 import { ExtractionPipelineService } from './services/extraction-pipeline.service';
 import { QualityAssuranceService } from './services/quality-assurance.service';
+import { DuplicateDetectionService } from '../requirements/duplicate-detection.service';
 
 @Injectable()
 export class ExtractionService {
@@ -10,7 +11,8 @@ export class ExtractionService {
         private prisma: PrismaService,
         private ingestionService: IngestionService,
         private pipelineService: ExtractionPipelineService,
-        private qaService: QualityAssuranceService
+        private qaService: QualityAssuranceService,
+        private duplicateService: DuplicateDetectionService
     ) { }
 
     async checkDrafts(drafts: any[]) {
@@ -40,7 +42,7 @@ export class ExtractionService {
     async getJobStatus(id: string) {
         const job = await this.prisma.extractionJob.findUnique({
             where: { id },
-            include: { 
+            include: {
                 drafts: true,
                 source: true // Include source to get content
             }
@@ -51,10 +53,10 @@ export class ExtractionService {
         // Run dynamic QA on fetch (Optimization: Store in DB later)
         const qaIssues = this.qaService.analyzeDrafts(job.drafts);
 
-        return { 
-            ...job, 
+        return {
+            ...job,
             sourceText: job.source.content, // Map for frontend
-            qaIssues 
+            qaIssues
         };
     }
 
@@ -67,23 +69,31 @@ export class ExtractionService {
             throw new Error('Draft not found');
         }
 
+        // Get a valid user ID
+        let creatorId = 'mock-user-id';
+        const systemUser = await this.prisma.user.findFirst();
+        if (systemUser) {
+            creatorId = systemUser.id;
+        }
+
         // Create the actual requirement
-        // TODO: Determine code generation strategy (e.g. REQ-SEQ) or business logic
         const requirement = await this.prisma.requirement.create({
             data: {
                 code: `REQ-${Date.now()}`, // Temporary code generation
                 title: draft.title || 'Untitled',
                 content: draft.content || '',
-                creatorId: 'mock-user-id', // TODO: Context user
+                creatorId: creatorId,
                 sourceId: draft.sourceId,
-                // Default classifications if any
             }
         });
 
-        // Update draft status
+        // Update draft status and link to created requirement
         await this.prisma.requirementDraft.update({
             where: { id: draftId },
-            data: { status: 'MERGED' }
+            data: {
+                status: 'MERGED',
+                mergedRequirementId: requirement.id
+            }
         });
 
         return requirement;
@@ -95,7 +105,7 @@ export class ExtractionService {
             where: { id: jobId },
             include: { source: true }
         });
-        
+
         // Get AI provider info from the job result (stored during extraction)
         let modelName = 'AI Extraction';
         if (job?.result) {
@@ -123,7 +133,7 @@ export class ExtractionService {
                 data: {
                     email: 'system@specflow.io',
                     name: 'System Admin',
-                    password: 'system_password_placeholder', 
+                    password: 'system_password_placeholder',
                     role: 'ADMIN'
                 }
             });
@@ -131,14 +141,34 @@ export class ExtractionService {
         }
 
         const createdRequirements = [];
+        const skippedDuplicates: { draftId: string; title: string; matchedCode: string; similarity: number }[] = [];
 
-        // 3. Convert to Requirements
+        // 3. Convert to Requirements with duplicate check
         for (const draft of drafts) {
+            // Check for duplicate before creating
+            const duplicateCheck = await this.duplicateService.checkDuplicate(draft.title || '', draft.content || '');
+
+            if (duplicateCheck.isDuplicate) {
+                // Skip this draft - mark as DUPLICATE instead of MERGED
+                await this.prisma.requirementDraft.update({
+                    where: { id: draft.id },
+                    data: { status: 'REJECTED' } // Mark as rejected due to duplicate
+                });
+
+                skippedDuplicates.push({
+                    draftId: draft.id,
+                    title: draft.title || 'Untitled',
+                    matchedCode: duplicateCheck.matchedRequirementCode || 'Unknown',
+                    similarity: duplicateCheck.similarity || 1.0
+                });
+                continue; // Skip to next draft
+            }
+
             // Lookup category by code (draft.type might be "Functional", "Non-Functional", etc.)
             let categoryId: string | null = null;
             if (draft.type) {
                 const category = await this.prisma.category.findFirst({
-                    where: { 
+                    where: {
                         OR: [
                             { code: draft.type },
                             { name: { contains: draft.type, mode: 'insensitive' } }
@@ -155,11 +185,11 @@ export class ExtractionService {
                     code: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Unique code
                     title: draft.title || 'Untitled',
                     content: draft.content || '',
-                    creatorId: creatorId, 
+                    creatorId: creatorId,
                     sourceId: draft.sourceId,
                     status: 'DRAFT', // Initial status
                     classifications: categoryId ? {
-                        create: [{ 
+                        create: [{
                             categoryId: categoryId,
                             source: 'AI',
                             confidence: draft.confidence || 0.8,
@@ -177,14 +207,23 @@ export class ExtractionService {
             });
             createdRequirements.push(req);
 
-            // 4. Mark draft as MERGED
+            // 4. Mark draft as MERGED and link to the created requirement
             await this.prisma.requirementDraft.update({
                 where: { id: draft.id },
-                data: { status: 'MERGED' }
+                data: {
+                    status: 'MERGED',
+                    mergedRequirementId: req.id
+                }
             });
         }
 
-        return { message: `Merged ${createdRequirements.length} requirements`, requirements: createdRequirements };
+        return {
+            message: `${createdRequirements.length}건 등록, ${skippedDuplicates.length}건 중복 스킵`,
+            created: createdRequirements.length,
+            skipped: skippedDuplicates.length,
+            requirements: createdRequirements,
+            duplicates: skippedDuplicates
+        };
     }
 
     async updateDraftStatus(id: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) {
@@ -194,16 +233,16 @@ export class ExtractionService {
             data,
             include: { source: true }
         });
-        
+
         // If status changed to APPROVED, create a Requirement
         if (data.status === 'APPROVED') {
             const draft = updatedDraft;
             const code = `REQ-AUTO-${Date.now().toString(36).toUpperCase()}`;
             // Find or use system user for auto-created requirements
-            const systemUser = await this.prisma.user.findFirst({ 
-                where: { email: 'system@specflow.ai' } 
+            const systemUser = await this.prisma.user.findFirst({
+                where: { email: 'system@specflow.ai' }
             }) || await this.prisma.user.findFirst();
-            
+
             if (systemUser) {
                 await this.prisma.requirement.create({
                     data: {
@@ -225,13 +264,13 @@ export class ExtractionService {
                         }
                     }
                 });
-                
+
                 console.log(`[EXTRACTION] Created requirement ${code} from approved draft ${id}`);
             } else {
                 console.warn(`[EXTRACTION] No system user found, skipping requirement creation for draft ${id}`);
             }
         }
-        
+
         return updatedDraft;
     }
 
@@ -285,22 +324,22 @@ export class ExtractionService {
         // Delete related drafts first (or rely on cascade if configured, but safe side here)
         // Prisma schema might not have cascade on all, so let's check
         // Assuming cascade delete is set on Schema or we delete manually.
-        
+
         // Manual cleanup to ensure everything is gone
         const job = await this.prisma.extractionJob.findUnique({ where: { id } });
         if (!job) throw new Error('Job not found');
 
         // Delete drafts
         await this.prisma.requirementDraft.deleteMany({ where: { jobId: id } });
-        
+
         // Delete job
         await this.prisma.extractionJob.delete({ where: { id } });
-        
+
         // Optionally delete source if not shared? 
         // For now, let's keep source or delete it if 1:1. 
         // ExtractionSource -> ExtractionJob is 1:N potentially, but usually 1:1 in this flow.
         // Let's safe-delete source if no other jobs (optional logic, skipping for simplicity)
-        
+
         return { message: 'Job deleted successfully' };
     }
 }

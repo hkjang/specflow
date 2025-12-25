@@ -9,7 +9,7 @@ const categories = [
     {
         code: 'IND-FIN', name: '금융 (Finance)', description: '금융권 표준 요구사항', level: 'Industry',
         children: [
-            { 
+            {
                 code: 'DOM-BNK', name: '은행 (Banking)', level: 'Domain',
                 children: [
                     { name: '계좌 관리', level: 'Function' }, { name: '이체/송금', level: 'Function' }, { name: '여신/수신', level: 'Function' }
@@ -18,7 +18,7 @@ const categories = [
             {
                 code: 'DOM-SEC', name: '증권 (Securities)', level: 'Domain',
                 children: [
-                   { name: '주식 매매', level: 'Function' }, { name: '차트 분석', level: 'Function' }
+                    { name: '주식 매매', level: 'Function' }, { name: '차트 분석', level: 'Function' }
                 ]
             }
         ]
@@ -273,7 +273,7 @@ async function seedOperationalData() {
     console.log('Seeding Operational Data...');
 
     const p = prisma as any;
-    
+
     // Cleanup existing
     await p.crawlHistory.deleteMany({});
     await p.crawler.deleteMany({});
@@ -284,9 +284,9 @@ async function seedOperationalData() {
 
     // 1. Enhanced Crawlers - Korean Government & Industry Sites
     const crawlersData = [
-        { 
-            name: '국가법령정보센터', 
-            url: 'https://law.go.kr', 
+        {
+            name: '국가법령정보센터',
+            url: 'https://law.go.kr',
             schedule: '0 2 * * *', // 매일 새벽 2시
             status: 'ACTIVE',
             category: 'REGULATION',
@@ -295,9 +295,9 @@ async function seedOperationalData() {
             successCount: 125,
             errorCount: 3
         },
-        { 
-            name: '금융감독원 규정', 
-            url: 'https://fss.or.kr/fss/kr/rules', 
+        {
+            name: '금융감독원 규정',
+            url: 'https://fss.or.kr/fss/kr/rules',
             schedule: '0 3 * * 1', // 매주 월요일 새벽 3시
             status: 'ACTIVE',
             category: 'REGULATION',
@@ -306,9 +306,9 @@ async function seedOperationalData() {
             successCount: 48,
             errorCount: 1
         },
-        { 
-            name: '개인정보보호위원회', 
-            url: 'https://pipc.go.kr', 
+        {
+            name: '개인정보보호위원회',
+            url: 'https://pipc.go.kr',
             schedule: '0 4 * * *',
             status: 'ACTIVE',
             category: 'REGULATION',
@@ -317,9 +317,9 @@ async function seedOperationalData() {
             successCount: 67,
             errorCount: 0
         },
-        { 
-            name: '국가인권위원회', 
-            url: 'https://humanrights.go.kr', 
+        {
+            name: '국가인권위원회',
+            url: 'https://humanrights.go.kr',
             schedule: '0 5 * * 3', // 매주 수요일
             status: 'PAUSED',
             category: 'REGULATION',
@@ -327,9 +327,9 @@ async function seedOperationalData() {
             successCount: 23,
             errorCount: 0
         },
-        { 
-            name: 'IT Daily Tech News', 
-            url: 'https://itdaily.kr/tech', 
+        {
+            name: 'IT Daily Tech News',
+            url: 'https://itdaily.kr/tech',
             schedule: '0 */2 * * *', // 2시간마다
             status: 'ACTIVE',
             category: 'NEWS',
@@ -338,9 +338,9 @@ async function seedOperationalData() {
             successCount: 890,
             errorCount: 12
         },
-        { 
-            name: '경쟁사 API 문서', 
-            url: 'https://competitor.example.com/docs/api', 
+        {
+            name: '경쟁사 API 문서',
+            url: 'https://competitor.example.com/docs/api',
             schedule: '0 6 * * 0', // 매주 일요일
             status: 'ERROR',
             category: 'COMPETITOR',
@@ -349,9 +349,9 @@ async function seedOperationalData() {
             successCount: 15,
             errorCount: 8
         },
-        { 
-            name: '사내 위키', 
-            url: 'https://wiki.company.internal/requirements', 
+        {
+            name: '사내 위키',
+            url: 'https://wiki.company.internal/requirements',
             schedule: '0 1 * * *', // 매일 새벽 1시
             status: 'ACTIVE',
             category: 'INTERNAL',
@@ -360,9 +360,9 @@ async function seedOperationalData() {
             successCount: 234,
             errorCount: 2
         },
-        { 
-            name: 'KISA 보안 가이드', 
-            url: 'https://kisa.or.kr/public/laws', 
+        {
+            name: 'KISA 보안 가이드',
+            url: 'https://kisa.or.kr/public/laws',
             schedule: '0 5 * * 5', // 매주 금요일
             status: 'ACTIVE',
             category: 'REGULATION',
@@ -372,9 +372,9 @@ async function seedOperationalData() {
             errorCount: 1
         },
         // === RSS NEWS FEEDS ===
-        { 
-            name: 'ZDNet Korea RSS', 
-            url: 'https://zdnet.co.kr/rss/all.rss', 
+        {
+            name: 'ZDNet Korea RSS',
+            url: 'https://zdnet.co.kr/rss/all.rss',
             schedule: '0 */1 * * *', // 매시간
             status: 'ACTIVE',
             category: 'NEWS',
@@ -383,9 +383,9 @@ async function seedOperationalData() {
             successCount: 1250,
             errorCount: 5
         },
-        { 
-            name: 'Bloter 테크 뉴스', 
-            url: 'https://www.bloter.net/feed', 
+        {
+            name: 'Bloter 테크 뉴스',
+            url: 'https://www.bloter.net/feed',
             schedule: '0 */2 * * *', // 2시간마다
             status: 'ACTIVE',
             category: 'NEWS',
@@ -394,9 +394,9 @@ async function seedOperationalData() {
             successCount: 890,
             errorCount: 3
         },
-        { 
-            name: '전자신문 RSS', 
-            url: 'https://www.etnews.com/rss/Section901.xml', 
+        {
+            name: '전자신문 RSS',
+            url: 'https://www.etnews.com/rss/Section901.xml',
             schedule: '0 */3 * * *', // 3시간마다
             status: 'ACTIVE',
             category: 'NEWS',
@@ -405,9 +405,9 @@ async function seedOperationalData() {
             successCount: 1560,
             errorCount: 8
         },
-        { 
-            name: '보안뉴스 RSS', 
-            url: 'https://www.boannews.com/rss/news.xml', 
+        {
+            name: '보안뉴스 RSS',
+            url: 'https://www.boannews.com/rss/news.xml',
             schedule: '0 */4 * * *', // 4시간마다
             status: 'ACTIVE',
             category: 'NEWS',
@@ -416,9 +416,9 @@ async function seedOperationalData() {
             successCount: 720,
             errorCount: 2
         },
-        { 
-            name: 'Hacker News RSS', 
-            url: 'https://hnrss.org/frontpage', 
+        {
+            name: 'Hacker News RSS',
+            url: 'https://hnrss.org/frontpage',
             schedule: '0 */6 * * *', // 6시간마다
             status: 'ACTIVE',
             category: 'NEWS',
@@ -435,7 +435,7 @@ async function seedOperationalData() {
         createdCrawlers.push(crawler);
     }
     console.log(`Created ${createdCrawlers.length} crawlers.`);
-    
+
     // 2. Crawl History for each active crawler
     const historyStatuses = ['SUCCESS', 'SUCCESS', 'SUCCESS', 'FAILED', 'SUCCESS'];
     for (const crawler of createdCrawlers.filter((c: any) => c.status === 'ACTIVE')) {
@@ -444,7 +444,7 @@ async function seedOperationalData() {
             const startTime = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
             const duration = 5000 + Math.floor(Math.random() * 30000);
             const status = historyStatuses[h];
-            
+
             await p.crawlHistory.create({
                 data: {
                     crawlerId: crawler.id,
@@ -526,20 +526,20 @@ async function seedOperationalData() {
 async function seedExtractionJobs() {
     console.log('Seeding Extraction Jobs...');
     const p = prisma as any;
-    
+
     // Clean up existing
     await p.requirementDraft.deleteMany({});
     await p.extractionJob.deleteMany({});
     await p.extractionSource.deleteMany({});
-    
+
     // Create extraction sources (only type, content, metadata)
     const sources = [
-        { 
-            type: 'FILE', 
+        {
+            type: 'FILE',
             content: '금융소비자보호법 시행령 제23조에 따라 금융상품 판매 시 적합성 원칙을 준수해야 한다. 고객의 투자성향을 파악하고 그에 맞는 상품을 권유해야 하며, 부적합한 상품 권유 시 경고를 제공해야 한다.',
             metadata: { name: '금융감독원 규정 문서', fileName: 'financial_regulation_2024.pdf', size: 1024000 }
         },
-        { 
+        {
             type: 'FILE',
             content: '배송 추적 시스템은 실시간으로 위치 정보를 제공해야 한다. GPS 기반 추적이 가능해야 하며, 배송 상태 변경 시 즉시 알림을 발송해야 한다. 일일 처리량은 최소 100만 건 이상을 지원해야 한다.',
             metadata: { name: '물류 시스템 RFP', fileName: 'logistics_rfp_2024.docx', size: 512000 }
@@ -555,21 +555,21 @@ async function seedExtractionJobs() {
             metadata: { name: '스마트팩토리 요구사항 정의서', fileName: 'smart_factory_spec.pdf', size: 2048000 }
         },
     ];
-    
+
     const createdSources = [];
     for (const s of sources) {
         const src = await p.extractionSource.create({ data: s });
         createdSources.push(src);
     }
-    
+
     // Create extraction jobs
     const statuses = ['COMPLETED', 'COMPLETED', 'COMPLETED', 'PROCESSING'];
     const models = ['gpt-4o', 'qwen3:8b', 'claude-3-opus'];
-    
+
     for (let i = 0; i < createdSources.length; i++) {
         const source = createdSources[i];
         const status = statuses[i];
-        
+
         const job = await p.extractionJob.create({
             data: {
                 sourceId: source.id,
@@ -582,7 +582,7 @@ async function seedExtractionJobs() {
                 } : null
             }
         });
-        
+
         // Create drafts for completed jobs
         if (status === 'COMPLETED') {
             const draftStatuses = ['APPROVED', 'APPROVED', 'PENDING', 'REJECTED'];
@@ -595,7 +595,7 @@ async function seedExtractionJobs() {
                 '센서 데이터 수집',
                 '이상 감지 알람'
             ];
-            
+
             for (let d = 0; d < 4; d++) {
                 await p.requirementDraft.create({
                     data: {
@@ -611,17 +611,17 @@ async function seedExtractionJobs() {
             }
         }
     }
-    
+
     console.log('Seeding Extraction Jobs Completed.');
 }
 
 async function seedMarketplace() {
     console.log('Seeding Marketplace...');
     const p = prisma as any;
-    
+
     // Clean up
     await p.marketplaceItem.deleteMany({});
-    
+
     const items = [
         {
             name: '금융권 표준 요건 템플릿 팩',
@@ -678,21 +678,21 @@ async function seedMarketplace() {
             provider: 'SpecFlow Community'
         }
     ];
-    
+
     for (const item of items) {
         await p.marketplaceItem.create({ data: item });
     }
-    
+
     console.log('Seeding Marketplace Completed.');
 }
 
 async function seedKnowledgeBase() {
     console.log('Seeding Knowledge Base...');
     const p = prisma as any;
-    
+
     // Clean up
     await p.knowledgeArticle.deleteMany({});
-    
+
     const articles = [
         {
             title: '요건 정의 Best Practice 가이드',
@@ -792,11 +792,11 @@ async function seedKnowledgeBase() {
             isPublished: true
         }
     ];
-    
+
     for (const article of articles) {
         await p.knowledgeArticle.create({ data: article });
     }
-    
+
     console.log('Seeding Knowledge Base Completed.');
 }
 
@@ -905,40 +905,40 @@ async function seedProjectsAndPartners() {
 
     // 2. Partners
     const partnersData = [
-        { 
-            name: 'Samsung SDS', type: 'Technology', status: 'Active', 
-            email: 'contact@samsung.com', region: 'Seoul', 
-            description: 'Global IT Solutions Provider' 
+        {
+            name: 'Samsung SDS', type: 'Technology', status: 'Active',
+            email: 'contact@samsung.com', region: 'Seoul',
+            description: 'Global IT Solutions Provider'
         },
-        { 
-            name: 'LG CNS', type: 'Technology', status: 'Active', 
-            email: 'biz@lgcns.com', region: 'Seoul', 
-            description: 'Digital Transformation Partner' 
+        {
+            name: 'LG CNS', type: 'Technology', status: 'Active',
+            email: 'biz@lgcns.com', region: 'Seoul',
+            description: 'Digital Transformation Partner'
         },
-        { 
-            name: 'SK C&C', type: 'Technology', status: 'Active', 
-            email: 'info@skcc.com', region: 'Seoul', 
-            description: 'Smart ICT Business Partner' 
+        {
+            name: 'SK C&C', type: 'Technology', status: 'Active',
+            email: 'info@skcc.com', region: 'Seoul',
+            description: 'Smart ICT Business Partner'
         },
-        { 
-            name: 'PwC Consulting', type: 'Consulting', status: 'Active', 
-            email: 'kr_consulting@pwc.com', region: 'Global', 
-            description: 'Strategy & Management Consulting' 
+        {
+            name: 'PwC Consulting', type: 'Consulting', status: 'Active',
+            email: 'kr_consulting@pwc.com', region: 'Global',
+            description: 'Strategy & Management Consulting'
         },
-        { 
-            name: 'Deloitte Korea', type: 'Consulting', status: 'Pending', 
-            email: 'audit@deloitte.com', region: 'Global', 
-            description: 'Audit, Consulting, Tax, Advisory' 
+        {
+            name: 'Deloitte Korea', type: 'Consulting', status: 'Pending',
+            email: 'audit@deloitte.com', region: 'Global',
+            description: 'Audit, Consulting, Tax, Advisory'
         },
-        { 
-            name: 'AWS Korea', type: 'Technology', status: 'Active', 
-            email: 'aws-kr@amazon.com', region: 'Global', 
-            description: 'Cloud Infrastructure Provider' 
+        {
+            name: 'AWS Korea', type: 'Technology', status: 'Active',
+            email: 'aws-kr@amazon.com', region: 'Global',
+            description: 'Cloud Infrastructure Provider'
         },
-        { 
-            name: 'Wanted HRLab', type: 'Resource', status: 'Active', 
-            email: 'hr@wanted.com', region: 'Seoul', 
-            description: 'Tech Talent Application Platform' 
+        {
+            name: 'Wanted HRLab', type: 'Resource', status: 'Active',
+            email: 'hr@wanted.com', region: 'Seoul',
+            description: 'Tech Talent Application Platform'
         }
     ];
 
@@ -959,7 +959,7 @@ async function seedProjectsAndPartners() {
     // - 물류 플랫폼: SK C&C, AWS
     // - 공공 데이터: LG CNS
     // - AI 신약: Deloitte, AWS
-    
+
     // Helper to find ID by name
     const getP = (name: string) => partners.find((x: any) => x.name === name);
     const getProj = (name: string) => projects.find((x: any) => x.name === name);
@@ -1007,7 +1007,7 @@ async function seedRequirements(prisma: any) {
     // 1. Fetch Context Data
     const projects = await prisma.project.findMany();
     const categories = await prisma.category.findMany();
-    
+
     // 0. Seed Realistic Users with different roles (ADMIN, PM, PLANNER, DEVELOPER, QA)
     const usersData = [
         { email: 'admin@specflow.io', name: '김관리', password: 'hashed', role: 'ADMIN' },
@@ -1021,7 +1021,7 @@ async function seedRequirements(prisma: any) {
         { email: 'biz.song@specflow.io', name: '송비즈', password: 'hashed', role: 'PLANNER' },
         { email: 'system@specflow.io', name: 'System', password: 'hashed', role: 'ADMIN' },
     ];
-    
+
     const orgId = projects[0]?.organizationId || 'org-001';
     const createdUsers: any[] = [];
     for (const u of usersData) {
@@ -1033,7 +1033,7 @@ async function seedRequirements(prisma: any) {
         createdUsers.push(user);
     }
     console.log(`Created/Updated ${createdUsers.length} users.`);
-    
+
     const userIds = createdUsers.map(u => u.id);
 
     console.log('Cleaning up old requirements...');
@@ -1100,7 +1100,7 @@ async function seedRequirements(prisma: any) {
         const noun = rand(vocab.nouns);
         const verb = rand(vocab.verbs);
         const context = rand(vocab.contexts);
-        
+
         const title = `${context} 환경에서의 ${noun} ${verb} 기능`;
         const content = `사용자가 시스템을 통해 ${noun} 정보를 ${verb}할 수 있어야 한다. 
 주요 요구사항:
@@ -1111,7 +1111,7 @@ async function seedRequirements(prisma: any) {
         // Pick Categories (1 Main, maybe 1 secondary)
         // Try to pick meaningful category based on context keywords? Or random for variety.
         // Let's bias: '보안' context -> SEC category. '성능' -> NFR.
-        
+
         let targetCatCode = 'FUNC'; // Default Function
         if (title.includes('보안') || title.includes('인증')) targetCatCode = 'SEC';
         else if (title.includes('전송') || title.includes('API')) targetCatCode = 'INT';
@@ -1126,11 +1126,11 @@ async function seedRequirements(prisma: any) {
         // Random Properties
         const statusList = ['DRAFT', 'REVIEW', 'APPROVED', 'DEPRECATED'];
         const priorityList = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-        
+
         const status = rand(statusList);
         const priority = rand(priorityList);
         // Biased trust grade based on status
-        let trustGrade = Math.random(); 
+        let trustGrade = Math.random();
         if (status === 'APPROVED' || status === 'DONE') trustGrade = 0.8 + (Math.random() * 0.2); // 0.8 ~ 1.0
 
         // Random Model Source
@@ -1144,10 +1144,10 @@ async function seedRequirements(prisma: any) {
                 title,
                 content: content,
                 status: status as any,
-                creatorId: 'sys-admin', // Assuming we have no proper users yet, or use NULL if optional
+                creatorId: rand(userIds), // Use randomly selected user from seeded users
                 trustGrade: parseFloat(trustGrade.toFixed(2)),
                 version: 1,
-                
+
                 // Add AI Metadata
                 aiMetadata: {
                     create: {
@@ -1162,10 +1162,10 @@ async function seedRequirements(prisma: any) {
         // Add Classification (Explicit Tags)
         // Scenario 1: Pure AI (Status DRAFT/PENDING)
         // Scenario 2: Mixed (Human verified some)
-        
+
         const isVerified = (status === 'APPROVED' || status === 'DONE');
         const classModel = rand(models); // Classification might be done by a different model
-        
+
         // 1. Add Main Category Classification
         await prisma.requirementClassification.create({
             data: {
@@ -1179,7 +1179,7 @@ async function seedRequirements(prisma: any) {
 
         // 2. Chance for Secondary Category (Pure AI suggestion usually)
         if (Math.random() > 0.7) {
-            const secondary = rand(categories.filter((c:any) => c.id !== mainCategory.id));
+            const secondary = rand(categories.filter((c: any) => c.id !== mainCategory.id));
             await prisma.requirementClassification.create({
                 data: {
                     requirementId: req.id,
@@ -1190,14 +1190,14 @@ async function seedRequirements(prisma: any) {
                 }
             });
         }
-        
+
         // 3. Create Quality Metric for each requirement
         const ambiguity = 10 + Math.random() * 40; // 10-50 (lower is better for ambiguity)
         const redundancy = 5 + Math.random() * 35; // 5-40
         const completenessVal = 60 + Math.random() * 40; // 60-100
         const correctnessVal = 70 + Math.random() * 30; // 70-100
         const overallScore = (100 - ambiguity + 100 - redundancy + completenessVal + correctnessVal) / 4;
-        
+
         await prisma.qualityMetric.create({
             data: {
                 requirementId: req.id,
@@ -1208,7 +1208,7 @@ async function seedRequirements(prisma: any) {
                 overallScore: parseFloat(overallScore.toFixed(2))
             }
         });
-        
+
         // 4. Create Requirement History (simulate recent changes)
         const historyActions = ['status', 'content', 'title', 'priority'];
         const historyCount = randInt(0, 3);
@@ -1216,7 +1216,7 @@ async function seedRequirements(prisma: any) {
             const field = rand(historyActions);
             const changer = rand(userIds);
             const daysAgo = randInt(0, 30);
-            
+
             await prisma.requirementHistory.create({
                 data: {
                     requirementId: req.id,
@@ -1235,7 +1235,7 @@ async function seedRequirements(prisma: any) {
     }
 
     console.log(`Successfully generated ${generatedReqs.length} realistic requirements with quality metrics and history.`);
-    
+
     // 5. Seed Admin Alerts
     console.log('Seeding Admin Alerts...');
     const alertsData = [
@@ -1244,7 +1244,7 @@ async function seedRequirements(prisma: any) {
         { title: '중복 요건 감지', message: 'REQ-FIN-1023과 REQ-FIN-1045가 85% 유사합니다.', severity: 'WARNING', isRead: true },
         { title: 'AI 모델 업데이트 완료', message: 'GPT-4o 모델이 활성화되었습니다.', severity: 'INFO', isRead: true },
     ];
-    
+
     for (const alert of alertsData) {
         await prisma.adminAlert.create({ data: alert });
     }

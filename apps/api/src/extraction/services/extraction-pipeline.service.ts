@@ -79,6 +79,10 @@ export class ExtractionPipelineService {
                         content: d.content,
                         type: d.type,
                         confidence: d.confidence,
+                        suggestedDomain: d.suggestedDomain || null,
+                        suggestedFunction: d.suggestedFunction || null,
+                        suggestedMenu: d.suggestedMenu || null,
+                        suggestedTags: d.suggestedTags || [],
                         status: 'PENDING'
                     }))
                 });

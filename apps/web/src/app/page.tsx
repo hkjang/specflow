@@ -1,11 +1,12 @@
 'use client';
 
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FileText, Clock, CheckCircle, Activity, TrendingUp, BarChart3, PieChart } from "lucide-react";
+import { FileText, Clock, CheckCircle, Activity, TrendingUp, BarChart3, PieChart, Tag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
-import { userApi, adminApi } from "@/lib/api";
+import { userApi, adminApi, classificationApi } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 interface Activity {
     id: string;
@@ -28,19 +29,22 @@ export default function Home() {
     const [stats, setStats] = useState({ assigned: 0, toDo: 0, approved: 0, todayActivity: 0 });
     const [activities, setActivities] = useState<Activity[]>([]);
     const [progress, setProgress] = useState<ProgressStats | null>(null);
+    const [classificationTags, setClassificationTags] = useState<{ name: string; count: number }[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const userId = 'user-123';
-        
+
         Promise.all([
             userApi.getMyStats(userId).catch(() => ({ data: { assigned: 0, toDo: 0, approved: 0, todayActivity: 0 } })),
             adminApi.getRecentActivities(5).catch(() => ({ data: [] })),
-            adminApi.getProgressStats().catch(() => ({ data: null }))
-        ]).then(([statsRes, activitiesRes, progressRes]) => {
+            adminApi.getProgressStats().catch(() => ({ data: null })),
+            classificationApi.getStats().catch(() => ({ data: [] }))
+        ]).then(([statsRes, activitiesRes, progressRes, tagsRes]) => {
             setStats(statsRes.data);
             setActivities(activitiesRes.data);
             setProgress(progressRes.data);
+            setClassificationTags(tagsRes.data.filter((t: any) => t.count > 0).slice(0, 30));
         }).finally(() => setLoading(false));
     }, []);
 
@@ -142,7 +146,7 @@ export default function Home() {
                                         <div key={item.status} className="flex items-center gap-3">
                                             <span className="text-xs font-medium text-slate-600 w-20">{item.status}</span>
                                             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                <div 
+                                                <div
                                                     className={`h-full ${statusColors[item.status] || 'bg-slate-400'} transition-all`}
                                                     style={{ width: `${percent}%` }}
                                                 />
@@ -175,7 +179,7 @@ export default function Home() {
                                     <div key={week.week} className="flex-1 flex flex-col items-center gap-2">
                                         <div className="w-full flex flex-col items-center">
                                             <span className="text-xs font-bold text-slate-700">{week.created}</span>
-                                            <div 
+                                            <div
                                                 className="w-full bg-gradient-to-t from-indigo-500 to-indigo-300 rounded-t transition-all"
                                                 style={{ height: `${Math.max(height, 5)}%` }}
                                             />
@@ -188,6 +192,52 @@ export default function Home() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Tag Word Cloud */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <Tag className="h-5 w-5 text-amber-500" />
+                        분류 태그 클라우드 (Tag Cloud)
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="h-32 flex items-center justify-center text-slate-400">로딩 중...</div>
+                    ) : classificationTags.length === 0 ? (
+                        <div className="h-32 flex items-center justify-center text-slate-400">분류된 태그가 없습니다.</div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2 p-4">
+                            {classificationTags.map((tag, idx) => {
+                                const maxCount = Math.max(...classificationTags.map(t => t.count), 1);
+                                const scale = 0.7 + (tag.count / maxCount) * 0.8; // 0.7 ~ 1.5 scale
+                                const colors = [
+                                    'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                    'bg-purple-100 text-purple-700 hover:bg-purple-200',
+                                    'bg-green-100 text-green-700 hover:bg-green-200',
+                                    'bg-amber-100 text-amber-700 hover:bg-amber-200',
+                                    'bg-pink-100 text-pink-700 hover:bg-pink-200',
+                                    'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
+                                    'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
+                                ];
+                                const colorClass = colors[idx % colors.length];
+                                return (
+                                    <Link
+                                        key={tag.name}
+                                        href={`/requirements?category=${encodeURIComponent(tag.name)}`}
+                                        className={`px-3 py-1.5 rounded-full font-medium cursor-pointer transition-all ${colorClass}`}
+                                        style={{ fontSize: `${scale}rem` }}
+                                        title={`${tag.count}건 - 클릭하여 조회`}
+                                    >
+                                        {tag.name}
+                                        <span className="ml-1 opacity-60 text-xs">({tag.count})</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

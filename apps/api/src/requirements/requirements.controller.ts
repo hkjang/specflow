@@ -2,10 +2,14 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { RequirementsService } from './requirements.service';
 import { CreateRequirementDto } from './dto/create-requirement.dto';
 import { UpdateRequirementDto } from './dto/update-requirement.dto';
+import { RequirementEnrichmentService } from './requirement-enrichment.service';
 
 @Controller('requirements')
 export class RequirementsController {
-  constructor(private readonly requirementsService: RequirementsService) { }
+  constructor(
+    private readonly requirementsService: RequirementsService,
+    private readonly enrichmentService: RequirementEnrichmentService
+  ) { }
 
   @Post()
   create(@Body() createRequirementDto: CreateRequirementDto) {
@@ -16,10 +20,11 @@ export class RequirementsController {
   findAll(
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('category') category?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.requirementsService.findAll({ status, search, page: page ? +page : 1, limit: limit ? +limit : 50 });
+    return this.requirementsService.findAll({ status, search, category, page: page ? +page : 1, limit: limit ? +limit : 50 });
   }
 
   @Post('global/bulk-status')
@@ -31,6 +36,23 @@ export class RequirementsController {
   bulkDelete(@Body() body: { ids: string[] }) {
     return this.requirementsService.bulkDelete(body.ids);
   }
+
+  // --- AI Enrichment Endpoints ---
+  @Get('enrichment/pending')
+  findRequirementsWithoutMetadata(@Query('limit') limit?: number) {
+    return this.enrichmentService.findRequirementsWithoutMetadata(limit ? +limit : 50);
+  }
+
+  @Post('enrichment/batch')
+  batchEnrich(@Body() body: { limit?: number }) {
+    return this.enrichmentService.batchEnrich(body.limit || 20);
+  }
+
+  @Post(':id/enrich')
+  enrichSingle(@Param('id') id: string) {
+    return this.enrichmentService.enrichRequirement(id);
+  }
+  // --- End AI Enrichment ---
 
   @Get(':id')
   findOne(@Param('id') id: string) {
@@ -44,7 +66,7 @@ export class RequirementsController {
 
   @Post(':id/comments')
   addComment(@Param('id') id: string, @Body() body: { content: string, userId: string }) {
-    return this.requirementsService.addComment(id, body.content, body.userId || 'system'); // Fallback user
+    return this.requirementsService.addComment(id, body.content, body.userId || 'system');
   }
 
   @Get(':id/comments')
@@ -57,4 +79,3 @@ export class RequirementsController {
     return this.requirementsService.remove(id);
   }
 }
-

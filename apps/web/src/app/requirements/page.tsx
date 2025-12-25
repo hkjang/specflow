@@ -15,16 +15,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 // Debounce Hook
 function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
 }
 
 export default function RequirementsPage() {
@@ -43,16 +43,22 @@ export default function RequirementsPage() {
     const [limit, setLimit] = useState(10);
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('ALL');
-    
+    const [category, setCategory] = useState<string | null>(searchParams.get('category'));
+
     // Debounced Search
     const debouncedSearch = useDebounce(search, 500);
 
-    // Initial Load & Params Sync usually handled here, 
-    // but for simplicity we'll drive from state -> effect -> fetch
+    // Sync category from URL on mount and URL change
+    useEffect(() => {
+        const catParam = searchParams.get('category');
+        if (catParam !== category) {
+            setCategory(catParam);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         fetchReqs();
-    }, [page, limit, debouncedSearch, status]);
+    }, [page, limit, debouncedSearch, status, category]);
 
     const fetchReqs = async () => {
         try {
@@ -60,6 +66,7 @@ export default function RequirementsPage() {
             const params: any = { page, limit };
             if (debouncedSearch) params.search = debouncedSearch;
             if (status !== 'ALL') params.status = status;
+            if (category) params.category = category;
 
             const res = await api.get('/requirements', { params });
             // Backend returns { data: [], total: number, page: number, limit: number }
@@ -107,7 +114,7 @@ export default function RequirementsPage() {
     const handleBulkDelete = async () => {
         if (selected.size === 0) return;
         if (!confirm(`${selected.size}개의 요건을 삭제하시겠습니까?`)) return;
-        
+
         setBulkDeleting(true);
         try {
             await api.post('/requirements/global/bulk-delete', { ids: Array.from(selected) });
@@ -134,8 +141,8 @@ export default function RequirementsPage() {
                 <div className="flex items-center gap-2 w-full md:w-auto">
                     <div className="relative w-full md:w-72">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                        <Input 
-                            placeholder="코드, 제목, 내용 검색..." 
+                        <Input
+                            placeholder="코드, 제목, 내용 검색..."
                             className="pl-9"
                             value={search}
                             onChange={handleSearchChange}
@@ -153,6 +160,18 @@ export default function RequirementsPage() {
                             <SelectItem value="DEPRECATED">DEPRECATED</SelectItem>
                         </SelectContent>
                     </Select>
+                    {category && (
+                        <Badge
+                            variant="secondary"
+                            className="bg-amber-100 text-amber-800 px-3 py-1 cursor-pointer hover:bg-amber-200"
+                            onClick={() => {
+                                setCategory(null);
+                                router.push('/requirements');
+                            }}
+                        >
+                            🏷️ {category} ✕
+                        </Badge>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -175,8 +194,8 @@ export default function RequirementsPage() {
                         <span className="text-sm font-bold text-blue-700">
                             {selected.size}개 선택됨
                         </span>
-                        <Button 
-                            size="sm" 
+                        <Button
+                            size="sm"
                             variant="destructive"
                             onClick={handleBulkDelete}
                             disabled={bulkDeleting}
@@ -190,7 +209,7 @@ export default function RequirementsPage() {
                         </Button>
                     </div>
                 )}
-                
+
                 {loading && (
                     <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -200,7 +219,7 @@ export default function RequirementsPage() {
                     <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                         <tr>
                             <th className="px-3 py-4 w-[40px]">
-                                <Checkbox 
+                                <Checkbox
                                     checked={requirements.length > 0 && selected.size === requirements.length}
                                     onCheckedChange={toggleSelectAll}
                                 />
@@ -216,13 +235,13 @@ export default function RequirementsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {requirements.map((req) => (
-                            <tr 
-                                key={req.id} 
+                            <tr
+                                key={req.id}
                                 className={`hover:bg-blue-50/30 transition-colors group cursor-pointer ${selected.has(req.id) ? 'bg-blue-50' : ''}`}
                                 onClick={() => router.push(`/requirements/${req.id}`)}
                             >
                                 <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
-                                    <Checkbox 
+                                    <Checkbox
                                         checked={selected.has(req.id)}
                                         onCheckedChange={() => toggleSelect(req.id)}
                                     />
@@ -253,8 +272,8 @@ export default function RequirementsPage() {
                                 <td className="px-5 py-4">
                                     <Badge variant="outline" className={
                                         req.status === 'APPROVED' ? 'bg-green-50 text-green-600 border-green-200' :
-                                        req.status === 'REVIEW' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                                        'bg-slate-50 text-slate-500'
+                                            req.status === 'REVIEW' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                                'bg-slate-50 text-slate-500'
                                     }>
                                         {req.status}
                                     </Badge>
@@ -263,7 +282,7 @@ export default function RequirementsPage() {
                                     {req.business?.name || <span className="text-slate-300">-</span>}
                                 </td>
                                 <td className="px-5 py-4 text-xs text-slate-400">
-                                    {new Date(req.updatedAt).toLocaleString('ko-KR', { 
+                                    {new Date(req.updatedAt).toLocaleString('ko-KR', {
                                         year: 'numeric', month: '2-digit', day: '2-digit',
                                         hour: '2-digit', minute: '2-digit', second: '2-digit'
                                     })}
@@ -306,7 +325,7 @@ export default function RequirementsPage() {
                     >
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    
+
                     <div className="flex items-center gap-1 px-2">
                         <span className="text-sm font-medium">Page {page}</span>
                         <span className="text-sm text-slate-400">/ {maxPages}</span>

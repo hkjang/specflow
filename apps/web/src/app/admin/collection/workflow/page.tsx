@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { 
-    RefreshCw, Globe, FileText, ArrowRight, CheckCircle, XCircle, 
-    Clock, Zap, Database, Eye, ChevronRight, Sparkles, Check, X
+import {
+    RefreshCw, Globe, FileText, ArrowRight, CheckCircle, XCircle,
+    Clock, Zap, Database, Eye, ChevronRight, Sparkles, Check, X, Tag, Briefcase, Layout
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -35,6 +35,11 @@ interface RequirementDraft {
     originalText: string | null;
     confidence: number | null;
     status: string;
+    mergedRequirementId: string | null;
+    suggestedDomain: string | null;
+    suggestedFunction: string | null;
+    suggestedMenu: string | null;
+    suggestedTags: string[];
     createdAt: string;
 }
 
@@ -95,6 +100,100 @@ export default function CollectionWorkflowPage() {
         }
     };
 
+    const mergeSingleDraft = async (draftId: string) => {
+        try {
+            setApproving(draftId);
+            const res = await api.post(`/extraction/drafts/${draftId}/merge`, { projectId: 'default' });
+            const req = res.data;
+
+            // Update local state - mark as merged with requirement ID
+            setDrafts(prev => prev.map(d =>
+                d.id === draftId
+                    ? { ...d, status: 'MERGED', mergedRequirementId: req.id }
+                    : d
+            ));
+            alert('요건으로 병합되었습니다.');
+        } catch (error) {
+            console.error(error);
+            alert('병합 실패');
+        } finally {
+            setApproving(null);
+        }
+    };
+
+    const batchApproveAll = async () => {
+        if (!selectedJob) return;
+        try {
+            setApproving('batch');
+            await api.post(`/extraction/jobs/${selectedJob.id}/batch-approve`);
+            setDrafts(prev => prev.map(d => d.status === 'PENDING' ? { ...d, status: 'APPROVED' } : d));
+            alert('모든 대기 중인 요건이 승인되었습니다.');
+        } catch (error) {
+            console.error(error);
+            alert('일괄 승인 실패');
+        } finally {
+            setApproving(null);
+        }
+    };
+
+    const batchRejectAll = async () => {
+        if (!selectedJob) return;
+        if (!confirm('모든 대기 중인 요건을 거절하시겠습니까?')) return;
+        try {
+            await api.post(`/extraction/jobs/${selectedJob.id}/batch-reject`);
+            setDrafts(prev => prev.map(d => d.status === 'PENDING' ? { ...d, status: 'REJECTED' } : d));
+            alert('모든 대기 중인 요건이 거절되었습니다.');
+        } catch (error) {
+            console.error(error);
+            alert('일괄 거절 실패');
+        }
+    };
+
+    const mergeApprovedToRequirements = async () => {
+        if (!selectedJob) return;
+        const approvedCount = drafts.filter(d => d.status === 'APPROVED').length;
+        if (approvedCount === 0) {
+            alert('승인된 초안이 없습니다.');
+            return;
+        }
+        if (!confirm(`${approvedCount}개의 승인된 초안을 요건으로 병합하시겠습니까?`)) return;
+
+        try {
+            setApproving('merge');
+            const res = await api.post(`/extraction/jobs/${selectedJob.id}/merge`);
+            const data = res.data;
+
+            // Update local state - mark approved as merged and store the requirement IDs
+            if (data.requirements && Array.isArray(data.requirements)) {
+                setDrafts(prev => prev.map((d, idx) => {
+                    if (d.status === 'APPROVED') {
+                        const reqData = data.requirements.find((_: any, i: number) => i === idx) || data.requirements[0];
+                        return { ...d, status: 'MERGED', mergedRequirementId: reqData?.id || null };
+                    }
+                    return d;
+                }));
+            }
+
+            // Show detailed result message
+            const created = data.created || data.requirements?.length || 0;
+            const skipped = data.skipped || 0;
+            let resultMessage = `✅ ${created}건 등록 완료`;
+            if (skipped > 0) {
+                resultMessage += `\n⚠️ ${skipped}건 중복으로 스킵됨`;
+            }
+            alert(resultMessage);
+
+            // Refresh drafts to get the latest state with mergedRequirementId
+            const refreshed = await api.get(`/extraction/jobs/${selectedJob.id}/drafts`);
+            setDrafts(refreshed.data);
+        } catch (error) {
+            console.error(error);
+            alert('요건 병합 실패');
+        } finally {
+            setApproving(null);
+        }
+    };
+
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleString('ko-KR', {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -107,7 +206,8 @@ export default function CollectionWorkflowPage() {
             PENDING: 'bg-amber-100 text-amber-700 border-amber-200',
             APPROVED: 'bg-blue-100 text-blue-700 border-blue-200',
             REJECTED: 'bg-red-100 text-red-700 border-red-200',
-            PROCESSING: 'bg-purple-100 text-purple-700 border-purple-200'
+            PROCESSING: 'bg-purple-100 text-purple-700 border-purple-200',
+            MERGED: 'bg-indigo-100 text-indigo-700 border-indigo-200'
         };
         return styles[status] || 'bg-slate-100 text-slate-700';
     };
@@ -199,11 +299,11 @@ export default function CollectionWorkflowPage() {
                             <p className="text-xs mt-1">크롤러를 실행하면 추출 작업이 생성됩니다.</p>
                         </div>
                     )}
-                    
+
                     <div className="divide-y">
                         {jobs.map((job) => (
-                            <div 
-                                key={job.id} 
+                            <div
+                                key={job.id}
                                 className="px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
                                 onClick={() => viewJobDrafts(job)}
                             >
@@ -226,7 +326,7 @@ export default function CollectionWorkflowPage() {
                                                 </Badge>
                                             </div>
                                             <p className="text-xs text-slate-500">
-                                                {formatDate(job.createdAt)} • 
+                                                {formatDate(job.createdAt)} •
                                                 {(job.result as any)?.extractedCount || 0}건 추출됨
                                             </p>
                                         </div>
@@ -254,7 +354,7 @@ export default function CollectionWorkflowPage() {
                             추출된 요건 초안 검토
                         </DialogTitle>
                     </DialogHeader>
-                    
+
                     <div className="flex-1 overflow-auto">
                         {drafts.length === 0 ? (
                             <div className="text-center py-12 text-slate-400">
@@ -280,17 +380,48 @@ export default function CollectionWorkflowPage() {
                                                         )}
                                                     </div>
                                                     <p className="text-sm text-slate-600 mb-2">{draft.content}</p>
+
+                                                    {/* AI Metadata Display */}
+                                                    {(draft.suggestedDomain || draft.suggestedFunction || draft.suggestedMenu || (draft.suggestedTags && draft.suggestedTags.length > 0)) && (
+                                                        <div className="flex flex-wrap gap-2 mb-2">
+                                                            {draft.suggestedDomain && (
+                                                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                                    <Briefcase className="h-3 w-3 mr-1" />
+                                                                    {draft.suggestedDomain}
+                                                                </Badge>
+                                                            )}
+                                                            {draft.suggestedFunction && (
+                                                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                                                    <Layout className="h-3 w-3 mr-1" />
+                                                                    {draft.suggestedFunction}
+                                                                </Badge>
+                                                            )}
+                                                            {draft.suggestedMenu && (
+                                                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                                                    <Eye className="h-3 w-3 mr-1" />
+                                                                    {draft.suggestedMenu}
+                                                                </Badge>
+                                                            )}
+                                                            {draft.suggestedTags && draft.suggestedTags.map((tag, idx) => (
+                                                                <Badge key={idx} variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                                                    <Tag className="h-3 w-3 mr-1" />
+                                                                    {tag}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
                                                     {draft.originalText && (
                                                         <p className="text-xs text-slate-400 bg-slate-100 p-2 rounded">
                                                             원문: "{draft.originalText.slice(0, 150)}..."
                                                         </p>
                                                     )}
                                                 </div>
-                                                
+
                                                 {draft.status === 'PENDING' && (
                                                     <div className="flex gap-2 ml-4">
-                                                        <Button 
-                                                            size="sm" 
+                                                        <Button
+                                                            size="sm"
                                                             className="bg-emerald-600 hover:bg-emerald-700"
                                                             onClick={(e) => { e.stopPropagation(); approveDraft(draft.id); }}
                                                             disabled={approving === draft.id}
@@ -301,8 +432,8 @@ export default function CollectionWorkflowPage() {
                                                                 <Check className="h-4 w-4" />
                                                             )}
                                                         </Button>
-                                                        <Button 
-                                                            size="sm" 
+                                                        <Button
+                                                            size="sm"
                                                             variant="outline"
                                                             className="text-red-600 border-red-200 hover:bg-red-50"
                                                             onClick={(e) => { e.stopPropagation(); rejectDraft(draft.id); }}
@@ -311,6 +442,33 @@ export default function CollectionWorkflowPage() {
                                                         </Button>
                                                     </div>
                                                 )}
+
+                                                {draft.status === 'APPROVED' && (
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-indigo-600 hover:bg-indigo-700 ml-4"
+                                                        onClick={(e) => { e.stopPropagation(); mergeSingleDraft(draft.id); }}
+                                                        disabled={approving === draft.id}
+                                                    >
+                                                        {approving === draft.id ? (
+                                                            <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                                                        ) : (
+                                                            <Database className="h-4 w-4 mr-1" />
+                                                        )}
+                                                        요건 병합
+                                                    </Button>
+                                                )}
+
+                                                {draft.status === 'MERGED' && draft.mergedRequirementId && (
+                                                    <Link
+                                                        href={`/requirements/${draft.mergedRequirementId}`}
+                                                        className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100 transition-colors ml-4"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <ArrowRight className="h-4 w-4" />
+                                                        요건 보기
+                                                    </Link>
+                                                )}
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -318,16 +476,53 @@ export default function CollectionWorkflowPage() {
                             </div>
                         )}
                     </div>
-                    
+
                     <DialogFooter className="border-t pt-4">
                         <div className="flex justify-between w-full items-center">
                             <span className="text-sm text-slate-500">
-                                {drafts.filter(d => d.status === 'APPROVED').length}건 승인 / 
+                                {drafts.filter(d => d.status === 'APPROVED').length}건 승인 /
                                 {drafts.filter(d => d.status === 'PENDING').length}건 대기
                             </span>
-                            <Button variant="outline" onClick={() => setSelectedJob(null)}>
-                                닫기
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={batchRejectAll}
+                                    disabled={drafts.filter(d => d.status === 'PENDING').length === 0}
+                                >
+                                    <X className="h-4 w-4 mr-1" /> 전체 거절
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    onClick={batchApproveAll}
+                                    disabled={drafts.filter(d => d.status === 'PENDING').length === 0 || approving === 'batch'}
+                                >
+                                    {approving === 'batch' ? (
+                                        <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                        <Check className="h-4 w-4 mr-1" />
+                                    )}
+                                    전체 승인
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-indigo-600 hover:bg-indigo-700"
+                                    onClick={mergeApprovedToRequirements}
+                                    disabled={drafts.filter(d => d.status === 'APPROVED').length === 0 || approving === 'merge'}
+                                >
+                                    {approving === 'merge' ? (
+                                        <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                        <Database className="h-4 w-4 mr-1" />
+                                    )}
+                                    요건으로 병합
+                                </Button>
+                                <Button variant="outline" onClick={() => setSelectedJob(null)}>
+                                    닫기
+                                </Button>
+                            </div>
                         </div>
                     </DialogFooter>
                 </DialogContent>

@@ -8,9 +8,10 @@ import { PreprocessingService } from './services/preprocessing.service';
 import { AiInferenceService } from './services/ai-inference.service';
 import { ExtractionPipelineService } from './services/extraction-pipeline.service';
 import { QualityAssuranceService } from './services/quality-assurance.service';
+import { RequirementsModule } from '../requirements/requirements.module';
 
 @Module({
-    imports: [PrismaModule, AiModule],
+    imports: [PrismaModule, AiModule, RequirementsModule],
     controllers: [ExtractionController],
     providers: [
         ExtractionService,

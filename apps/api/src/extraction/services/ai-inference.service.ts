@@ -14,7 +14,15 @@ export class AiInferenceService {
 
         const prompt = `
             Analyze the following text and extract software requirements.
-            Format the output as a JSON array of objects with keys: title, content, type (Functional, Non-Functional, Security), confidence (0-1).
+            Format the output as a JSON array of objects with the following keys:
+            - title: 요건 제목 (Korean)
+            - content: 요건 상세 내용 (Korean)
+            - type: Functional | Non-Functional | Security
+            - confidence: 신뢰도 (0-1)
+            - suggestedDomain: 비즈니스 도메인 (금융, 물류, 공공, 제조, 의료, IT서비스 중 선택)
+            - suggestedFunction: 기능 분류 (사용자관리, 권한관리, 결제, 알림, 검색, 보안, 데이터관리, 연계 중 선택)
+            - suggestedMenu: 관련 메뉴 추천 (예: 마이페이지, 관리자설정, 대시보드, 주문관리 등)
+            - suggestedTags: 분류 태그 배열 (예: ["보안", "성능", "UI/UX", "규제준수"])
             
             IMPORTANT: The 'title' and 'content' fields MUST be written in Korean.
             

@@ -119,8 +119,8 @@ export class RequirementsService {
     }
   }
 
-  async findAll(params: { status?: string, search?: string, page: number, limit: number } = { page: 1, limit: 100 }) {
-    const { status, search, page, limit } = params;
+  async findAll(params: { status?: string, search?: string, category?: string, page: number, limit: number } = { page: 1, limit: 100 }) {
+    const { status, search, category, page, limit } = params;
 
     const where: any = {};
 
@@ -136,6 +136,17 @@ export class RequirementsService {
       ];
     }
 
+    // Filter by category (via classifications relation)
+    if (category) {
+      where.classifications = {
+        some: {
+          category: {
+            name: { contains: category, mode: 'insensitive' }
+          }
+        }
+      };
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.requirement.findMany({
         where,
@@ -148,7 +159,7 @@ export class RequirementsService {
           menu: true,
           // categories: true, // DEPRECATED
           classifications: {
-             include: { category: true }
+            include: { category: true }
           },
           aiMetadata: true,
           qualityMetric: true,
@@ -196,11 +207,11 @@ export class RequirementsService {
     await this.prisma.requirementHistory.deleteMany({ where: { requirementId: { in: ids } } });
     await this.prisma.qualityMetric.deleteMany({ where: { requirementId: { in: ids } } });
     await this.prisma.comment.deleteMany({ where: { requirementId: { in: ids } } });
-    
+
     const result = await this.prisma.requirement.deleteMany({
       where: { id: { in: ids } }
     });
-    
+
     return { deleted: result.count };
   }
 
@@ -232,25 +243,25 @@ export class RequirementsService {
     // 2. Resolve Author (Handle 'system' or missing ID)
     let authorId = userId;
     if (!authorId || authorId === 'system') {
-        const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' } });
-        if (admin) {
-            authorId = admin.id;
+      const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' } });
+      if (admin) {
+        authorId = admin.id;
+      } else {
+        const anyUser = await this.prisma.user.findFirst();
+        if (anyUser) {
+          authorId = anyUser.id;
         } else {
-             const anyUser = await this.prisma.user.findFirst();
-             if (anyUser) {
-                 authorId = anyUser.id;
-             } else {
-                 const systemUser = await this.prisma.user.create({
-                     data: {
-                         email: 'system-comment@specflow.ai',
-                         name: 'System Agent',
-                         password: 'hashed_placeholder',
-                         role: 'ADMIN'
-                     }
-                 });
-                 authorId = systemUser.id;
-             }
+          const systemUser = await this.prisma.user.create({
+            data: {
+              email: 'system-comment@specflow.ai',
+              name: 'System Agent',
+              password: 'hashed_placeholder',
+              role: 'ADMIN'
+            }
+          });
+          authorId = systemUser.id;
         }
+      }
     }
 
     // 3. Save Comment
@@ -279,7 +290,7 @@ export class RequirementsService {
     await this.prisma.requirementHistory.deleteMany({ where: { requirementId: id } });
     await this.prisma.qualityMetric.deleteMany({ where: { requirementId: id } });
     await this.prisma.comment.deleteMany({ where: { requirementId: id } });
-    
+
     return this.prisma.requirement.delete({
       where: { id }
     });
