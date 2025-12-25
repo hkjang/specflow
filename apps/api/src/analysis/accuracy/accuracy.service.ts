@@ -75,106 +75,105 @@ export class AccuracyService {
   }
 
   async seedInitialData() {
-    this.logger.log('Seeding Accuracy Heatmap Data with Advanced Fields...');
+    this.logger.log('Seeding Accuracy Heatmap Data with Realistic Enterprise Scenarios...');
 
-    // 1. Industry Data
-    const industryData = [
-      { category: 'Finance', extraction: 0.92, classification: 0.88, deduplication: 0.90, summarization: 0.86, impact: 0.9, risk: 0.9 }, // High usage, High Reg
-      { category: 'Medical', extraction: 0.85, classification: 0.80, deduplication: 0.82, summarization: 0.78, impact: 0.8, risk: 0.95 }, // High Reg
-      { category: 'Automotive', extraction: 0.89, classification: 0.86, deduplication: 0.87, summarization: 0.84, impact: 0.7, risk: 0.7 },
-      { category: 'RealEstate', extraction: 0.83, classification: 0.79, deduplication: 0.81, summarization: 0.78, impact: 0.6, risk: 0.5 },
-      { category: 'Public', extraction: 0.87, classification: 0.82, deduplication: 0.84, summarization: 0.80, impact: 0.5, risk: 0.8 },
-    ];
+    // 0. Clear existing data to avoid conflicts and enable fast bulk insert
+    await this.prisma.accuracyMetric.deleteMany({});
 
-    for (const d of industryData) {
-      await this.upsertMetric('INDUSTRY', d.category, 'EXTRACTION', d.extraction, undefined, d.impact, d.risk);
-      await this.upsertMetric('INDUSTRY', d.category, 'CLASSIFICATION', d.classification, undefined, d.impact, d.risk);
-      await this.upsertMetric('INDUSTRY', d.category, 'DEDUPLICATION', d.deduplication, undefined, d.impact, d.risk);
-      await this.upsertMetric('INDUSTRY', d.category, 'SUMMARIZATION', d.summarization, undefined, d.impact, d.risk);
+    // Dimensions
+    const orgs = ['woori_bank', 'samsung_life', 'lg_cns', 'sk_telecom'];
+    const models = ['GPT-4', 'Claude-3', 'Solar', 'Llama-3'];
+    const industries = ['Finance', 'Medical', 'Automotive', 'RealEstate', 'Public', 'Legal', 'Retail'];
+    const tasks = ['EXTRACTION', 'CLASSIFICATION', 'DEDUPLICATION', 'SUMMARIZATION', 'TRANSLATION'];
+
+    // Helper to generate distinct randomish but consistent data
+    const generateTrend = (base: number, volatility: number, monthOffset: number) => {
+        // Create a trend that generally improves but has random dips
+        const improvement = monthOffset * 0.005; 
+        const randomVar = (Math.random() - 0.5) * volatility;
+        return Math.min(0.99, Math.max(0.4, base + improvement + randomVar));
+    };
+
+    const metricsToInsert: any[] = [];
+
+    // 1. Time Series Data (Last 6 Months)
+    const today = new Date();
+    for (let i = 5; i >= 0; i--) {
+        const periodDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const period = `${periodDate.getFullYear()}-${String(periodDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        for (const org of orgs) {
+            for (const model of models) {
+                for (const ind of industries) {
+                    // Base accuracy depends on Model + Industry difficulty
+                    let baseAcc = 0.85;
+                    if (model === 'GPT-4') baseAcc += 0.05;
+                    if (model === 'Solar') baseAcc -= 0.02; // Faster but slightly less acc
+                    if (ind === 'Medical' || ind === 'Legal') baseAcc -= 0.1; // Hard domains
+
+                    // Generate metrics for each task
+                    for (const task of tasks) {
+                        const acc = generateTrend(baseAcc, 0.05, 6 - i);
+                        
+                        // Impact/Risk logic
+                        let impact = 0.5;
+                        let risk = 0.3;
+                        if (ind === 'Finance' || ind === 'Medical') { impact = 0.9; risk = 0.8; }
+                        if (task === 'EXTRACTION') { risk += 0.1; }
+
+                        // Cause logic for low accuracy
+                        let majorCause: string | null = null;
+                        if (acc < 0.75) {
+                            const causes = ['Context Limit', 'Ambiguous Term', 'Complex Structure', 'Low Resolution', 'Hallucination'];
+                            majorCause = causes[Math.floor(Math.random() * causes.length)];
+                        }
+
+                        metricsToInsert.push({
+                            dimension: 'INDUSTRY', 
+                            category: ind, 
+                            aiTask: task, 
+                            accuracy: acc, 
+                            period, 
+                            organizationId: org, 
+                            aiModel: model,
+                            majorCause,
+                            impact,
+                            risk,
+                            sampleCount: Math.floor(Math.random() * 500) + 50
+                        });
+                    }
+                }
+            }
+        }
     }
 
-    // 2. Function Data
-    const functionData = [
-      { category: 'Registration', accuracy: 0.94, cause: 'Clear Sentence', impact: 0.9, risk: 0.6 },
-      { category: 'Approval', accuracy: 0.91, cause: 'Rule Based', impact: 0.8, risk: 0.8 },
-      { category: 'Classification', accuracy: 0.81, cause: 'Polysemy', impact: 0.7, risk: 0.5 },
-      { category: 'Merge', accuracy: 0.78, cause: 'Overlap', impact: 0.5, risk: 0.5 },
-      { category: 'Recommend', accuracy: 0.75, cause: 'Lack of Context', impact: 0.6, risk: 0.4 },
-    ];
-
-    for (const d of functionData) {
-      await this.upsertMetric('FUNCTION', d.category, 'GENERAL', d.accuracy, d.cause, d.impact, d.risk);
-    }
-
-    // 3. Source Data
-    const sourceData = [
-      { category: 'Regulation', accuracy: 0.93, cause: 'Standard Structure', impact: 0.4, risk: 0.9 },
-      { category: 'RFP', accuracy: 0.88, cause: 'Mixed Style', impact: 0.6, risk: 0.7 },
-      { category: 'InternalDoc', accuracy: 0.82, cause: 'Colloquial', impact: 0.8, risk: 0.6 },
-      { category: 'Email', accuracy: 0.70, cause: 'Unstructured', impact: 0.7, risk: 0.4 },
-      { category: 'Messenger', accuracy: 0.65, cause: 'Abbreviation', impact: 0.6, risk: 0.3 },
-    ];
-
-    for (const d of sourceData) {
-      await this.upsertMetric('SOURCE', d.category, 'GENERAL', d.accuracy, d.cause, d.impact, d.risk);
-    }
-
-    this.logger.log('Seeding Completed.');
-    return { success: true, count: industryData.length + functionData.length + sourceData.length };
-  }
-
-  private async upsertMetric(dimension: string, category: string, aiTask: string, accuracy: number, majorCause?: string, impact: number = 0.5, risk: number = 0.5) {
-    const period = '2024-Q4';
-    const existing = await this.prisma.accuracyMetric.findFirst({
-      where: { dimension, category, aiTask, period },
-    });
-
-    if (existing) {
-      await this.checkAndCreateAlert(dimension, category, accuracy);
-      return this.prisma.accuracyMetric.update({
-        where: { id: existing.id },
-        data: { accuracy, majorCause, impact, risk },
-      });
-    }
-
-    await this.checkAndCreateAlert(dimension, category, accuracy);
-    return this.prisma.accuracyMetric.create({
-      data: {
-        dimension,
-        category,
-        aiTask,
-        accuracy,
-        majorCause,
-        period,
-        sampleCount: 100,
-        impact,
-        risk,
-      },
-    });
-  }
-
-  private async checkAndCreateAlert(dimension: string, category: string, accuracy: number) {
-    if (accuracy < 0.7) {
-      const title = `Low Accuracy Alert: ${dimension} - ${category}`;
-      const message = `Accuracy for ${category} in ${dimension} is ${accuracy}, which is below the SLA threshold of 0.7. Immediate action required.`;
-      
-      // Check if alert already exists to avoid spam
-      const existing = await this.prisma.adminAlert.findFirst({
-        where: { title, isRead: false }
-      });
-
-      if (!existing) {
-        await this.prisma.adminAlert.create({
-          data: {
-            title,
-            message,
-            severity: 'CRITICAL',
-            category: 'Quality',
-            isRead: false
-          }
+    // 2. Add some "Global/Industry Standard" Aggregates (No specific org/model)
+    for (const ind of industries) {
+        metricsToInsert.push({
+            dimension: 'INDUSTRY',
+            category: ind,
+            aiTask: 'OVERALL',
+            accuracy: 0.88,
+            period: '2024-Q4', // Current Quarter
+            impact: 0.7,
+            risk: 0.6,
+            organizationId: null,
+            aiModel: null,
+            sampleCount: 1000
         });
-        this.logger.warn(`Created SLA Alert: ${title}`);
-      }
     }
+
+    // Batch Insert
+    // process in chunks of 500 to be safe
+    const batchSize = 500;
+    for (let i = 0; i < metricsToInsert.length; i += batchSize) {
+        const batch = metricsToInsert.slice(i, i + batchSize);
+        await this.prisma.accuracyMetric.createMany({
+            data: batch
+        });
+    }
+
+    this.logger.log(`Realistic Seeding Completed. Inserted ${metricsToInsert.length} records.`);
+    return { success: true, count: metricsToInsert.length };
   }
 }

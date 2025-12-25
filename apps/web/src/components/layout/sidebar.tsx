@@ -28,6 +28,10 @@ const userNavItems: NavItem[] = [
     { name: 'AI 추출', engName: 'AI Extraction', href: '/extraction', icon: Brain, actionDesc: 'Extract specs from docs' },
     { name: '분류/태깅', engName: 'Classification', href: '/classification', icon: FileText, actionDesc: 'Tag and organize specs' },
     { name: '사용자', engName: 'Users', href: '/users', icon: Users },
+    { name: 'AI 생성', engName: 'Generation', href: '/generation', icon: Globe, actionDesc: 'Generate content' },
+    { name: '지식 자산', engName: 'Knowledge', href: '/knowledge', icon: Library, actionDesc: 'Knowledge Base' },
+    { name: '마켓플레이스', engName: 'Marketplace', href: '/marketplace', icon: CreditCard },
+    { name: '파트너 포털', engName: 'Partner', href: '/partner', icon: Users },
     { name: '환경 설정', engName: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -41,6 +45,7 @@ const adminNavItems: NavItem[] = [
         children: [
             { name: '전체 현황', href: '/admin' },
             { name: '추세 분석', href: '/admin/analysis' },
+            { name: '전략적 품질 (Accuracy)', href: '/dashboard/analysis/accuracy' }, // Added Strategic Platform
         ]
     },
     {
@@ -51,6 +56,7 @@ const adminNavItems: NavItem[] = [
         children: [
             { name: '전체 요건 조회', href: '/admin/assets' },
             { name: '요건 맵 (Tree)', href: '/admin/requirements/map' },
+            { name: '지식 자산 대시보드', href: '/knowledge' }, // Added Knowledge
             { name: '빠른 검토 (Review)', href: '/admin/review' },
             { name: '변경 이력 (Diff)', href: '/admin/assets/diff' },
         ]
@@ -94,6 +100,7 @@ const adminNavItems: NavItem[] = [
         icon: CreditCard,
         children: [
             { name: 'API 추천', href: '/marketplace/recommendations' },
+            { name: '파트너 관리', href: '/partner' },
         ]
     },
     {
@@ -104,8 +111,8 @@ const adminNavItems: NavItem[] = [
         children: [
             { name: '알림/인박스', href: '/admin/operations' },
             { name: '규칙 엔진 설정', href: '/admin/operations/rules' },
-            { name: '감사 로그 (Audit)', href: '/governance/audit-logs' }, // New in Phase 7
-            { name: 'SLA 모니터링', href: '/admin/operations/sla' }, // New in Phase 8
+            { name: '감사 로그 (Audit)', href: '/governance/audit-logs' }, 
+            { name: 'SLA 모니터링', href: '/admin/operations/sla' }, 
         ]
     },
     {
@@ -116,6 +123,7 @@ const adminNavItems: NavItem[] = [
         children: [
             { name: '시스템 개요', href: '/admin/settings' },
             { name: '사용자/권한', href: '/admin/settings/users' },
+            { name: '웹훅 (Webhooks)', href: '/admin/settings/webhooks' }, // Added Webhooks
         ]
     },
 ];
