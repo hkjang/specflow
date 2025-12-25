@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Upload, CheckCircle, FileText, Code, BookOpen, AlertCircle, Trash2, Search } from 'lucide-react';
+import { knowledgeApi } from '@/lib/api';
 
 export default function KnowledgeDashboard() {
     const [assets, setAssets] = useState<any[]>([]);
@@ -174,7 +175,10 @@ export default function KnowledgeDashboard() {
                                     <TableRow key={asset.id} className="cursor-pointer hover:bg-slate-50 group">
                                         <TableCell className="font-medium">
                                             <div className="flex flex-col">
-                                                <span>{asset.title || asset.name}</span>
+                                                <a href={`/requirements/${asset.id}`} className="hover:underline text-indigo-700 font-semibold flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                    {asset.title || asset.name}
+                                                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded border border-slate-200">REQLink</span>
+                                                </a>
                                                 <span className="text-[10px] text-slate-400">by {asset.creator?.name || asset.author || 'Unknown'}</span>
                                             </div>
                                         </TableCell>
