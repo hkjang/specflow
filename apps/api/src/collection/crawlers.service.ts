@@ -87,6 +87,32 @@ export class CrawlersService {
             successRate
         };
     }
+    
+    // --- Collected Data API ---
+    async getCollectedData(limit = 50) {
+        return this.prisma.extractionSource.findMany({
+            where: { type: 'URL' },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            select: {
+                id: true,
+                type: true,
+                metadata: true,
+                createdAt: true,
+                content: false // Exclude content for list view
+            }
+        });
+    }
+    
+    async getCollectedDataById(id: string) {
+        return this.prisma.extractionSource.findUnique({
+            where: { id },
+            include: {
+                jobs: { take: 5 },
+                drafts: { take: 10 }
+            }
+        });
+    }
 
     // --- Run Crawler (with History Recording) ---
     async runCrawler(id: string) {

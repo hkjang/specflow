@@ -25,6 +25,16 @@ export class CrawlersController {
     getHistoryStats() {
         return this.crawlersService.getHistoryStats();
     }
+    
+    @Get('collected')
+    getCollectedData(@Query('limit') limit?: string) {
+        return this.crawlersService.getCollectedData(limit ? parseInt(limit) : 50);
+    }
+    
+    @Get('collected/:id')
+    getCollectedDataById(@Param('id') id: string) {
+        return this.crawlersService.getCollectedDataById(id);
+    }
 
     @Get(':id')
     findOne(@Param('id') id: string) {
