@@ -8,15 +8,27 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #09090b; /* Zinc 950 - Slightly richer dark */
+    --foreground: #fafafa; /* Zinc 50 - High contrast text */
+    
+    --primary: #3b82f6; /* Blue 500 - Bright/Strong Blue for Dark Mode */
+    --primary-foreground: #ffffff; /* White text */
   }
+}
+
+/* Light mode overrides if not in media query or default :root */
+:root {
+  /* ... existing vars ... */
+  --primary: #2563eb; /* Blue 600 - Strong Blue */
+  --primary-foreground: #ffffff; /* White text */
 }
 
 body {

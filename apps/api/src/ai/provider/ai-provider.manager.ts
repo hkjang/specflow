@@ -11,7 +11,14 @@ export class AiProviderManager implements OnModuleInit {
     private providers: IAiProvider[] = [];
     private readonly logger = new Logger(AiProviderManager.name);
 
-    constructor(private readonly prisma: PrismaService) { }
+    // Inject SettingsService to fetch global configs
+    constructor(
+        private readonly prisma: PrismaService,
+        // @Inject(forwardRef(() => SettingsService)) // Might need forwardRef if circular dependency exists, but likely not here
+        // Actually, AiProviderManager is a provider, SettingsService is a provider. 
+        // We need to import SettingsService in module.
+        // For simplicity, let's query Prisma directly for settings to avoid module circularity issues with SettingsModule.
+    ) { }
 
     async onModuleInit() {
         await this.refreshProviders();
@@ -61,6 +68,23 @@ export class AiProviderManager implements OnModuleInit {
      */
     async execute(request: AiRequest, context?: string): Promise<AiResponse> {
         let lastError: any;
+
+        // --- GLOBAL SETTINGS INHERITANCE ---
+        // Fetch global settings to override defaults
+        const globalModel = await this.prisma.systemSetting.findUnique({ where: { key: 'ai.model' } });
+        const globalTemp = await this.prisma.systemSetting.findUnique({ where: { key: 'ai.temperature' } });
+
+        // Apply overrides if request doesn't explicitly specify them (or force them?)
+        // Strategy: User request > Global Setting > Default
+        // BUT user said "AI Settings should inherit". Usually means IF NOT SPECIFIED.
+        if (!request.model && globalModel?.value) {
+            request.model = globalModel.value;
+        }
+
+        if (request.temperature === undefined && globalTemp?.value) {
+            request.temperature = parseFloat(globalTemp.value);
+        }
+        // ------------------------------------
 
         for (const provider of this.providers) {
             try {

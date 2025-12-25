@@ -35,6 +35,48 @@ export class DashboardService {
         };
     }
 
+    async getUserStats(userId: string) {
+        // Stats for a specific practitioner
+        const assignedCount = await this.prisma.requirement.count({
+            where: {
+                 // Use creatorId based on schema
+                 creatorId: userId
+            }
+        });
+
+        const pendingReviewCount = await this.prisma.approvalRequest.count({
+            where: {
+                reviewerId: userId,
+                status: 'PENDING'
+            }
+        });
+
+        const approvedCount = await this.prisma.requirement.count({
+            where: {
+                creatorId: userId,
+                status: 'APPROVED'
+            }
+        });
+
+        // "Today's Activity" - simplified as changes made by user today
+        const startOfDay = new Date();
+        startOfDay.setHours(0,0,0,0);
+        
+        const activityCount = await this.prisma.requirementHistory.count({
+            where: {
+                changerId: userId,
+                createdAt: { gte: startOfDay }
+            }
+        });
+
+        return {
+            assigned: assignedCount,
+            toDo: pendingReviewCount,
+            approved: approvedCount,
+            todayActivity: activityCount
+        };
+    }
+
     async getQualityMetrics() {
         // Average scores
         const aggregates = await this.prisma.qualityMetric.aggregate({

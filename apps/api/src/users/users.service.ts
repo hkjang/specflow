@@ -18,6 +18,13 @@ export class UsersService {
         return this.prisma.user.findUnique({ where: { id } });
     }
 
+    update(id: string, data: Prisma.UserUpdateInput) {
+        return this.prisma.user.update({
+            where: { id },
+            data
+        });
+    }
+
     remove(id: string) {
         return this.prisma.user.delete({ where: { id } });
     }

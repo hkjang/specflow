@@ -132,4 +132,19 @@ export const projectApi = {
     delete: (id: string) => api.delete(`/projects/${id}`),
 };
 
+export const userApi = {
+    getAll: () => api.get('/users'),
+    getOne: (id: string) => api.get(`/users/${id}`),
+    create: (data: any) => api.post('/users', data),
+    update: (id: string, data: any) => api.patch(`/users/${id}`, data),
+    delete: (id: string) => api.delete(`/users/${id}`),
+    getMyStats: (userId: string) => api.get(`/dashboard/mine?userId=${userId}`),
+};
+
+export const settingsApi = {
+    getAll: () => api.get('/settings'),
+    getOne: (key: string) => api.get(`/settings/${key}`),
+    upsert: (data: any) => api.post('/settings', data),
+};
+
 

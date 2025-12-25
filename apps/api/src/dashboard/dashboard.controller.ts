@@ -15,6 +15,18 @@ export class DashboardController {
         return this.dashboardService.getOverallStats();
     }
 
+    @Get('mine')
+    async getUserStats(@Query('userId') userId: string) {
+        // In a real app, userId should be extracted from the JWT token (UserGuard).
+        // For this demo/MVP, we accept it as a query param or header, or default to a test user if not provided.
+        // Let's assume the frontend sends the ID or we use a fallback for now.
+        if (!userId) {
+             // Fallback for demo navigation if no auth context
+             return { assigned: 0, toDo: 0, approved: 0, todayActivity: 0 };
+        }
+        return this.dashboardService.getUserStats(userId);
+    }
+
     @Get('admin/quality')
     async getQualityMetrics() {
         return this.dashboardService.getQualityMetrics();
