@@ -68,6 +68,11 @@ export class ExtractionController {
         return this.extractionService.batchApproveDrafts(jobId);
     }
 
+    @Post('jobs/:id/batch-reject')
+    async batchReject(@Param('id') jobId: string) {
+        return this.extractionService.batchRejectDrafts(jobId);
+    }
+
     @Patch('drafts/:id')
     async updateDraft(@Param('id') id: string, @Body() body: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) {
         return this.extractionService.updateDraftStatus(id, body);

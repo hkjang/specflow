@@ -20,6 +20,7 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
     const [qaIssues, setQaIssues] = useState<any[]>([]);
 
     const [editDraft, setEditDraft] = useState<any>(null);
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
 
     const fetchJob = async () => {
         try {
@@ -94,12 +95,28 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
         try {
             const res = await extractionApi.batchApprove(id);
             alert(`${res.data.count}개의 요건을 일괄 승인했습니다.`);
-            // Update local state to reflect approval
             setDrafts(drafts.map(d => d.status === 'PENDING' ? { ...d, status: 'APPROVED' } : d));
         } catch (error) {
             alert('일괄 승인 실패');
         }
     };
+
+    const handleBatchReject = async () => {
+        if (!confirm('보류 중인 모든 요건을 거절하시겠습니까?')) return;
+        try {
+            const res = await extractionApi.batchReject(id);
+            alert(`${res.data.count}개의 요건을 일괄 거절했습니다.`);
+            setDrafts(drafts.map(d => d.status === 'PENDING' ? { ...d, status: 'REJECTED' } : d));
+        } catch (error) {
+            alert('일괄 거절 실패');
+        }
+    };
+
+    // Stats
+    const pendingCount = drafts.filter(d => d.status === 'PENDING').length;
+    const approvedCount = drafts.filter(d => d.status === 'APPROVED').length;
+    const rejectedCount = drafts.filter(d => d.status === 'REJECTED').length;
+    const modelName = (job?.result as any)?.modelName || 'AI';
 
     if (loading) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin" /></div>;
 
@@ -115,18 +132,51 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
             </Card>
 
             <Card className="flex-1 flex flex-col">
-                <CardHeader className="flex flex-row justify-between items-center">
-                    <CardTitle>추출된 요건 (Extracted Requirements)</CardTitle>
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={handleBatchApprove} disabled={!drafts.some(d => d.status === 'PENDING')}>
-                            전체 승인
-                        </Button>
-                        <Button onClick={handleMerge} disabled={!drafts.some(d => d.status === 'APPROVED')}>
-                            승인된 요건 등록 (Merge)
-                        </Button>
+                <CardHeader className="flex flex-col gap-3">
+                    <div className="flex flex-row justify-between items-center">
+                        <div>
+                            <CardTitle>추출된 요건 ({drafts.length}건)</CardTitle>
+                            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{modelName}</span>
+                                <span>•</span>
+                                <span className="text-green-600">승인 {approvedCount}</span>
+                                <span className="text-amber-600">보류 {pendingCount}</span>
+                                <span className="text-red-600">거절 {rejectedCount}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={handleBatchReject} disabled={pendingCount === 0}>
+                                전체 거절
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleBatchApprove} disabled={pendingCount === 0}>
+                                전체 승인
+                            </Button>
+                            <Button size="sm" onClick={handleMerge} disabled={approvedCount === 0}>
+                                등록 ({approvedCount})
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-auto space-y-4">
+                    {/* Filter Tabs */}
+                    <div className="flex gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+                        {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(status => (
+                            <button
+                                key={status}
+                                onClick={() => setStatusFilter(status)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                    statusFilter === status 
+                                        ? 'bg-white shadow text-slate-900' 
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                {status === 'ALL' ? `전체 (${drafts.length})` : 
+                                 status === 'PENDING' ? `보류 (${pendingCount})` :
+                                 status === 'APPROVED' ? `승인 (${approvedCount})` : `거절 (${rejectedCount})`}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Processing State UI */}
                     {(job?.status === 'PROCESSING' || job?.status === 'PENDING') && (
                         <div className="p-6 border rounded-lg bg-blue-50 border-blue-100 flex flex-col items-center justify-center space-y-4">
@@ -144,36 +194,58 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
                         </div>
                     )}
 
-                    {drafts.map((draft) => {
+                    {drafts
+                        .filter(d => statusFilter === 'ALL' || d.status === statusFilter)
+                        .map((draft) => {
                         const issues = getIssuesForDraft(draft.id);
+                        const confidencePercent = Math.round((draft.confidence || 0) * 100);
+                        const confidenceColor = confidencePercent >= 90 ? 'bg-green-500' : 
+                                               confidencePercent >= 70 ? 'bg-amber-500' : 'bg-red-500';
                         return (
-                            <div key={draft.id} className={`p-4 border rounded-lg ${draft.status === 'APPROVED' ? 'bg-green-50/10 border-green-200' : draft.status === 'REJECTED' ? 'bg-red-50/10 border-red-200' : ''}`}>
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <h4 className="font-semibold">{draft.title}</h4>
-                                        <Badge variant="outline" className="mr-2">{draft.type}</Badge>
-                                        <span className="text-xs text-muted-foreground mr-2">신뢰도: {(draft.confidence * 100).toFixed(0)}%</span>
-                                        <span className={`text-xs font-bold ${draft.status === 'APPROVED' ? 'text-green-600' : draft.status === 'REJECTED' ? 'text-red-600' : 'text-slate-400'}`}>
-                                            {draft.status}
-                                        </span>
+                            <div key={draft.id} className={`p-4 border rounded-lg transition-all hover:shadow-md ${
+                                draft.status === 'APPROVED' ? 'bg-green-50/50 border-green-300' : 
+                                draft.status === 'REJECTED' ? 'bg-red-50/50 border-red-300 opacity-60' : 
+                                'bg-white border-slate-200'
+                            }`}>
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className="font-semibold text-slate-900">{draft.title}</h4>
+                                            <Badge variant="outline" className="text-xs">{draft.type}</Badge>
+                                        </div>
+                                        {/* Confidence Bar */}
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className="text-xs text-slate-500 w-12">신뢰도</span>
+                                            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden max-w-[120px]">
+                                                <div className={`h-full ${confidenceColor} transition-all`} style={{ width: `${confidencePercent}%` }} />
+                                            </div>
+                                            <span className={`text-xs font-medium ${confidencePercent >= 90 ? 'text-green-600' : confidencePercent >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                {confidencePercent}%
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex items-center gap-1">
                                         {draft.status === 'PENDING' && (
                                             <>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleAction(draft.id, 'approve')}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700" onClick={() => handleAction(draft.id, 'approve')}>
                                                     <Check className="h-4 w-4" />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={() => handleAction(draft.id, 'reject')}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => handleAction(draft.id, 'reject')}>
                                                     <X className="h-4 w-4" />
                                                 </Button>
                                             </>
                                         )}
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(draft)}>
+                                        {draft.status !== 'PENDING' && (
+                                            <Badge className={draft.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                                                {draft.status === 'APPROVED' ? '승인됨' : '거절됨'}
+                                            </Badge>
+                                        )}
+                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-slate-700" onClick={() => openEdit(draft)}>
                                             <Edit className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </div>
-                                <p className="text-sm mb-2 text-slate-700">{draft.content}</p>
+                                <p className="text-sm text-slate-600 leading-relaxed">{draft.content}</p>
 
                                 {issues.length > 0 && (
                                     <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">

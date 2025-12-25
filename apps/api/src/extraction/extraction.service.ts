@@ -202,6 +202,14 @@ export class ExtractionService {
         return { message: `Approved ${result.count} drafts`, count: result.count };
     }
 
+    async batchRejectDrafts(jobId: string) {
+        const result = await this.prisma.requirementDraft.updateMany({
+            where: { jobId, status: 'PENDING' },
+            data: { status: 'REJECTED' }
+        });
+        return { message: `Rejected ${result.count} drafts`, count: result.count };
+    }
+
     async getAllJobs() {
         // Fetch all extraction jobs with necessary relations for dashboard
         return this.prisma.extractionJob.findMany({

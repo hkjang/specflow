@@ -114,6 +114,7 @@ export const extractionApi = {
     updateDraft: (draftId: string, data: { status?: 'APPROVED' | 'REJECTED' | 'PENDING', title?: string, content?: string, type?: string }) => api.patch(`/extraction/drafts/${draftId}`, data),
     mergeJob: (jobId: string) => api.post(`/extraction/jobs/${jobId}/merge`),
     batchApprove: (jobId: string) => api.post(`/extraction/jobs/${jobId}/batch-approve`),
+    batchReject: (jobId: string) => api.post(`/extraction/jobs/${jobId}/batch-reject`),
 };
 
 export const classificationApi = {
