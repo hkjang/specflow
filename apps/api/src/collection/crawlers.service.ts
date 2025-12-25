@@ -217,12 +217,36 @@ export class CrawlersService {
             // ==== EXTRACT REQUIREMENTS FROM CONTENT ====
             let extractedItems: Array<{ title: string; text: string; description: string; confidence: number }>;
             
+            // Get category from crawler (cast to any to handle schema sync)
+            const crawlerCategory = (crawler as any).category || 'GENERAL';
+            
             // Check if this is an RSS feed (by category or content detection)
-            if (crawler.category === 'NEWS' || this.isRssFeed(realContent)) {
-                console.log(`[CRAWL] Detected RSS feed, using RSS parser`);
+            if (crawlerCategory === 'NEWS' || this.isRssFeed(realContent)) {
+                console.log(`[CRAWL] Detected RSS feed, using RSS parser with AI`);
                 extractedItems = await this.parseRssFeed(crawler.url, crawler.name);
             } else {
-                extractedItems = this.extractRequirementsFromHtml(realContent, crawler.name);
+                // Use AI to analyze ALL other content types
+                console.log(`[CRAWL] Using AI to analyze ${crawlerCategory} content`);
+                try {
+                    const aiResult = await this.aiService.convertContentToRequirements(
+                        articleTitle || crawler.name,
+                        textContent,
+                        crawlerCategory
+                    );
+                    
+                    // Convert AI results to extractedItems format
+                    extractedItems = (aiResult.requirements || []).map(req => ({
+                        title: req.title,
+                        text: req.content,
+                        description: `[${req.type}][${req.priority}][${req.category}] ${req.content}\n\n💡 근거: ${req.rationale}\n📊 출처: ${crawlerCategory}`,
+                        confidence: aiResult.relevanceScore || 0.7
+                    }));
+                    
+                    console.log(`[CRAWL] AI extracted ${extractedItems.length} requirements`);
+                } catch (aiError: any) {
+                    console.warn(`[CRAWL] AI analysis failed: ${aiError.message}, falling back to HTML extraction`);
+                    extractedItems = this.extractRequirementsFromHtml(realContent, crawler.name);
+                }
             }
             
             itemsExtracted = extractedItems.length;

@@ -249,4 +249,73 @@ export class AiService {
             return { requirements: [], relevanceScore: 0, summary: 'AI 분석 실패' };
         }
     }
+
+    /**
+     * Convert any crawled content to IT development/operation requirements
+     * Works for regulations, documents, competitor analysis, internal wikis, etc.
+     */
+    async convertContentToRequirements(contentTitle: string, content: string, sourceType: string): Promise<{
+        requirements: Array<{
+            title: string;
+            content: string;
+            type: string;
+            priority: string;
+            rationale: string;
+            category: string;
+        }>;
+        relevanceScore: number;
+        summary: string;
+    }> {
+        const prompt = `
+            당신은 시니어 IT 요건 분석가입니다.
+            다음 수집된 콘텐츠를 분석하여 IT 시스템 개발 또는 운영에 필요한 요건을 도출해주세요.
+            
+            콘텐츠 출처: ${sourceType}
+            콘텐츠 제목: "${contentTitle}"
+            콘텐츠 내용: "${content.slice(0, 3000)}"
+            
+            분석 지침:
+            1. 콘텐츠 유형에 맞게 요건 도출:
+               - REGULATION: 법규/규정 준수 요건
+               - COMPETITOR: 경쟁사 대응 기능 요건
+               - NEWS: 기술 트렌드 반영 요건
+               - INTERNAL: 내부 프로세스 개선 요건
+               - SECURITY: 보안 강화 요건
+            2. "시스템은 ~해야 한다" 형식으로 작성
+            3. 실행 가능하고 측정 가능한 요건으로 작성
+            4. 각 요건에 적절한 분류(category)를 지정
+            5. 관련성이 낮으면 빈 배열 반환
+            
+            JSON 형식으로 응답:
+            {
+                "requirements": [
+                    {
+                        "title": "요건 제목",
+                        "content": "시스템은 ~해야 한다",
+                        "type": "SECURITY | PERFORMANCE | COMPLIANCE | UX | FUNCTIONAL | OPERATIONAL",
+                        "priority": "HIGH | MEDIUM | LOW",
+                        "rationale": "이 요건이 필요한 이유",
+                        "category": "AUTH | DATA | API | UI | INFRA | MONITORING | PAYMENT | NOTIFICATION"
+                    }
+                ],
+                "relevanceScore": 0.0-1.0,
+                "summary": "콘텐츠 요약 및 IT 시스템 관련성"
+            }
+        `;
+
+        try {
+            const response = await this.providerManager.execute({
+                messages: [{ role: 'user', content: prompt }],
+                responseFormat: 'json_object',
+                temperature: 0.3,
+            }, 'GENERATION');
+
+            const result = JSON.parse(response.content || '{}');
+            console.log(`[AI] Extracted ${result.requirements?.length || 0} requirements from ${sourceType}: "${contentTitle}"`);
+            return result;
+        } catch (e) {
+            console.error('Content to requirement conversion failed', e);
+            return { requirements: [], relevanceScore: 0, summary: 'AI 분석 실패' };
+        }
+    }
 }
