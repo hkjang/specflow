@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, ArrowRight, Edit, Loader2 } from "lucide-react";
+import { Check, X, ArrowRight, Edit, Loader2, Search, ArrowUpDown, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,13 +14,15 @@ import { useRouter } from 'next/navigation';
 export default function VerificationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
-    const [loading, setLoading] = useState(true); // Initial load only
+    const [loading, setLoading] = useState(true);
     const [job, setJob] = useState<any>(null);
     const [drafts, setDrafts] = useState<any[]>([]);
     const [qaIssues, setQaIssues] = useState<any[]>([]);
 
     const [editDraft, setEditDraft] = useState<any>(null);
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<'confidence' | 'title' | 'type'>('confidence');
 
     const fetchJob = async () => {
         try {
@@ -177,6 +179,45 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
                         ))}
                     </div>
 
+                    {/* Search and Sort Controls */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 max-w-xs">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input 
+                                placeholder="요건 검색..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 h-9 text-sm"
+                            />
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-9 px-3"
+                            onClick={() => setSortBy(s => s === 'confidence' ? 'title' : s === 'title' ? 'type' : 'confidence')}
+                        >
+                            <ArrowUpDown className="h-4 w-4 mr-1" />
+                            {sortBy === 'confidence' ? '신뢰도순' : sortBy === 'title' ? '제목순' : '유형순'}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-9 px-3"
+                            onClick={() => {
+                                const csv = drafts.map(d => `${d.title},${d.type},${d.confidence},${d.status},${d.content}`).join('\n');
+                                const blob = new Blob(['제목,유형,신뢰도,상태,내용\n' + csv], { type: 'text/csv' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `extraction-${id}.csv`;
+                                a.click();
+                            }}
+                        >
+                            <Download className="h-4 w-4 mr-1" />
+                            CSV
+                        </Button>
+                    </div>
+
                     {/* Processing State UI */}
                     {(job?.status === 'PROCESSING' || job?.status === 'PENDING') && (
                         <div className="p-6 border rounded-lg bg-blue-50 border-blue-100 flex flex-col items-center justify-center space-y-4">
@@ -196,6 +237,12 @@ export default function VerificationPage({ params }: { params: Promise<{ id: str
 
                     {drafts
                         .filter(d => statusFilter === 'ALL' || d.status === statusFilter)
+                        .filter(d => !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.content.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .sort((a, b) => {
+                            if (sortBy === 'confidence') return (b.confidence || 0) - (a.confidence || 0);
+                            if (sortBy === 'title') return a.title.localeCompare(b.title);
+                            return a.type.localeCompare(b.type);
+                        })
                         .map((draft) => {
                         const issues = getIssuesForDraft(draft.id);
                         const confidencePercent = Math.round((draft.confidence || 0) * 100);
