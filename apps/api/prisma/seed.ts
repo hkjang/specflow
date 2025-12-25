@@ -370,6 +370,62 @@ async function seedOperationalData() {
             lastRunAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
             successCount: 56,
             errorCount: 1
+        },
+        // === RSS NEWS FEEDS ===
+        { 
+            name: 'ZDNet Korea RSS', 
+            url: 'https://zdnet.co.kr/rss/all.rss', 
+            schedule: '0 */1 * * *', // 매시간
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: 'ZDNet Korea IT/기술 뉴스 RSS 피드 수집',
+            lastRunAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+            successCount: 1250,
+            errorCount: 5
+        },
+        { 
+            name: 'Bloter 테크 뉴스', 
+            url: 'https://www.bloter.net/feed', 
+            schedule: '0 */2 * * *', // 2시간마다
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: 'Bloter 기술/스타트업 뉴스 RSS 수집',
+            lastRunAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            successCount: 890,
+            errorCount: 3
+        },
+        { 
+            name: '전자신문 RSS', 
+            url: 'https://www.etnews.com/rss/Section901.xml', 
+            schedule: '0 */3 * * *', // 3시간마다
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: '전자신문 IT/과학 섹션 RSS 피드 수집',
+            lastRunAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+            successCount: 1560,
+            errorCount: 8
+        },
+        { 
+            name: '보안뉴스 RSS', 
+            url: 'https://www.boannews.com/rss/news.xml', 
+            schedule: '0 */4 * * *', // 4시간마다
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: '보안뉴스 정보보안 뉴스 RSS 수집 (보안 요건 모니터링)',
+            lastRunAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+            successCount: 720,
+            errorCount: 2
+        },
+        { 
+            name: 'Hacker News RSS', 
+            url: 'https://hnrss.org/frontpage', 
+            schedule: '0 */6 * * *', // 6시간마다
+            status: 'ACTIVE',
+            category: 'NEWS',
+            description: 'Hacker News 프론트페이지 기술 트렌드 수집',
+            lastRunAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+            successCount: 2100,
+            errorCount: 10
         }
     ];
 

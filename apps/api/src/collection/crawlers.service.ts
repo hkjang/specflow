@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
+import RSSParser from 'rss-parser';
 
 @Injectable()
 export class CrawlersService {
@@ -210,7 +211,16 @@ export class CrawlersService {
             });
             
             // ==== EXTRACT REQUIREMENTS FROM CONTENT ====
-            const extractedItems = this.extractRequirementsFromHtml(realContent, crawler.name);
+            let extractedItems: Array<{ title: string; text: string; description: string; confidence: number }>;
+            
+            // Check if this is an RSS feed (by category or content detection)
+            if (crawler.category === 'NEWS' || this.isRssFeed(realContent)) {
+                console.log(`[CRAWL] Detected RSS feed, using RSS parser`);
+                extractedItems = await this.parseRssFeed(crawler.url, crawler.name);
+            } else {
+                extractedItems = this.extractRequirementsFromHtml(realContent, crawler.name);
+            }
+            
             itemsExtracted = extractedItems.length;
             
             // Create RequirementDrafts from extracted items
@@ -385,5 +395,49 @@ export class CrawlersService {
             'Page structure changed - selectors not found'
         ];
         return errors[Math.floor(Math.random() * errors.length)];
+    }
+    
+    // ==== RSS FEED PARSING ====
+    private async parseRssFeed(url: string, crawlerName: string): Promise<Array<{
+        title: string;
+        text: string;
+        description: string;
+        confidence: number;
+    }>> {
+        const parser = new RSSParser();
+        const results: Array<{ title: string; text: string; description: string; confidence: number }> = [];
+        
+        try {
+            console.log(`[RSS] Parsing feed from ${url}`);
+            const feed = await parser.parseURL(url);
+            
+            console.log(`[RSS] Found ${feed.items?.length || 0} items in "${feed.title}"`);
+            
+            for (const item of (feed.items || []).slice(0, 10)) {
+                const title = item.title || '제목 없음';
+                const content = item.contentSnippet || item.content || item.summary || '';
+                const link = item.link || '';
+                const pubDate = item.pubDate || item.isoDate || '';
+                
+                results.push({
+                    title: title,
+                    text: content,
+                    description: `[${crawlerName}] ${title}\n원문: ${link}\n발행일: ${pubDate}\n\n${content.slice(0, 300)}`,
+                    confidence: 0.75 + Math.random() * 0.2
+                });
+            }
+        } catch (error: any) {
+            console.error(`[RSS] Parse error: ${error.message}`);
+        }
+        
+        return results;
+    }
+    
+    private isRssFeed(content: string): boolean {
+        // Check if content is RSS/Atom XML
+        return content.includes('<rss') || 
+               content.includes('<feed') || 
+               content.includes('<channel>') ||
+               content.includes('xmlns:atom');
     }
 }
