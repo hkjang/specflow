@@ -2128,59 +2128,89 @@ JSON만 반환하세요.`;
   // --- Collaboration & Bookmarks ---
 
   /**
-   * Add bookmark for a user (stub - requires Bookmark model in Prisma)
+   * Add bookmark for a user
    */
   async addBookmark(userId: string, requirementId: string) {
-    // TODO: Uncomment when Bookmark model is added to Prisma schema
-    // const existing = await this.prisma.bookmark.findFirst({ where: { userId, requirementId } });
-    // if (existing) return { message: '이미 북마크되어 있습니다.', bookmarkId: existing.id };
-    // const bookmark = await this.prisma.bookmark.create({ data: { userId, requirementId } });
+    const existing = await this.prisma.bookmark.findFirst({
+      where: { userId, requirementId }
+    });
+
+    if (existing) {
+      return { message: '이미 북마크되어 있습니다.', bookmarkId: existing.id };
+    }
+
+    const bookmark = await this.prisma.bookmark.create({
+      data: { userId, requirementId }
+    });
+
     return {
-      bookmarkId: `bm-${Date.now()}`,
-      message: '북마크 기능은 Prisma 스키마 업데이트 후 활성화됩니다.',
-      requirementId
+      bookmarkId: bookmark.id,
+      message: '북마크가 추가되었습니다.'
     };
   }
 
   /**
-   * Get user's bookmarks (stub)
+   * Get user's bookmarks
    */
   async getBookmarks(userId: string, limit = 50) {
-    // TODO: Uncomment when Bookmark model is added
+    const bookmarks = await this.prisma.bookmark.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
     return {
-      count: 0,
-      bookmarks: [],
-      message: '북마크 기능은 Prisma 스키마 업데이트 후 활성화됩니다.'
+      count: bookmarks.length,
+      bookmarks: bookmarks.map((b: any) => ({
+        bookmarkId: b.id,
+        requirementId: b.requirementId,
+        bookmarkedAt: b.createdAt
+      }))
     };
   }
 
   /**
-   * Remove bookmark (stub)
+   * Remove bookmark
    */
   async removeBookmark(bookmarkId: string) {
-    return { message: '북마크 삭제 기능은 스키마 업데이트 후 활성화됩니다.', bookmarkId };
+    await this.prisma.bookmark.delete({ where: { id: bookmarkId } });
+    return { message: '북마크가 삭제되었습니다.', bookmarkId };
   }
 
   /**
-   * Add watcher to requirement (stub - requires RequirementWatcher model)
+   * Add watcher to requirement
    */
   async addWatcher(requirementId: string, userId: string) {
-    // TODO: Uncomment when RequirementWatcher model is added
-    return {
-      watcherId: `wt-${Date.now()}`,
-      message: '구독 기능은 Prisma 스키마 업데이트 후 활성화됩니다.',
-      requirementId
-    };
+    const existing = await this.prisma.requirementWatcher.findFirst({
+      where: { requirementId, userId }
+    });
+
+    if (existing) {
+      return { message: '이미 구독 중입니다.', watcherId: existing.id };
+    }
+
+    const watcher = await this.prisma.requirementWatcher.create({
+      data: { requirementId, userId }
+    });
+
+    return { watcherId: watcher.id, message: '변경 알림 구독이 시작되었습니다.' };
   }
 
   /**
-   * Get watchers for a requirement (stub)
+   * Get watchers for a requirement
    */
   async getWatchers(requirementId: string) {
+    const watchers = await this.prisma.requirementWatcher.findMany({
+      where: { requirementId }
+    });
+
     return {
-      count: 0,
-      watchers: [],
-      message: '구독자 조회 기능은 스키마 업데이트 후 활성화됩니다.'
+      count: watchers.length,
+      watchers: watchers.map((w: any) => ({
+        watcherId: w.id,
+        userId: w.userId,
+        since: w.createdAt
+      }))
     };
   }
 

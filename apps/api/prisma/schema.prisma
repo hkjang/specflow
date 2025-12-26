@@ -971,3 +971,47 @@ model KnowledgeArticle {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ========== AI Agent System Models ==========
+
+// User bookmarks for requirements
+model Bookmark {
+  id            String   @id @default(uuid())
+  userId        String
+  requirementId String
+  
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, requirementId])
+  @@index([userId])
+}
+
+// Change watchers for requirements
+model RequirementWatcher {
+  id            String   @id @default(uuid())
+  requirementId String
+  userId        String
+  
+  createdAt     DateTime @default(now())
+
+  @@unique([requirementId, userId])
+  @@index([requirementId])
+}
+
+// Industry benchmark data for accuracy heatmap
+model IndustryBenchmark {
+  id            String   @id @default(uuid())
+  industry      String   // FINANCE, HEALTHCARE, AUTOMOTIVE, etc.
+  category      String   // AUTH, PRIVACY, EMR, etc.
+  
+  avgAccuracy   Float
+  minCoverage   Float    @default(0.7)
+  sampleSize    Int
+  description   String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([industry, category])
+  @@index([industry])
+}
