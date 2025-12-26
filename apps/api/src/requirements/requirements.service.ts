@@ -1134,4 +1134,333 @@ JSON만 반환하세요.`;
       results
     };
   }
+
+  // --- UX Enhancement Features ---
+
+  /**
+   * Get requirement templates by category
+   */
+  async getTemplates(category?: string) {
+    const templates = [
+      {
+        id: 'func-user',
+        category: '기능요건',
+        name: '사용자 관리',
+        title: '[기능] 사용자 {행위} 기능',
+        content: '시스템은 사용자가 {조건}인 경우, {행위}를 수행할 수 있어야 한다.\n\n[예외처리]\n- {예외상황} 시 {대응}을 수행한다.\n\n[제약조건]\n- {제약사항}',
+        tags: ['사용자', '기능']
+      },
+      {
+        id: 'func-data',
+        category: '기능요건',
+        name: '데이터 처리',
+        title: '[기능] {데이터} 처리 기능',
+        content: '시스템은 {데이터}를 {처리방식}으로 처리하여야 한다.\n\n[입력]\n- {입력데이터}\n\n[출력]\n- {출력데이터}\n\n[성능기준]\n- 처리시간: {N}초 이내',
+        tags: ['데이터', '처리']
+      },
+      {
+        id: 'nfr-security',
+        category: '비기능요건',
+        name: '보안',
+        title: '[보안] {보안항목} 요건',
+        content: '시스템은 {보안대상}에 대해 {보안수준}의 보안을 제공하여야 한다.\n\n[인증방식]\n- {인증방법}\n\n[암호화]\n- {암호화알고리즘}\n\n[접근통제]\n- {접근통제정책}',
+        tags: ['보안', '비기능']
+      },
+      {
+        id: 'nfr-performance',
+        category: '비기능요건',
+        name: '성능',
+        title: '[성능] {성능항목} 요건',
+        content: '시스템은 {조건}에서 다음 성능 기준을 만족하여야 한다.\n\n[응답시간]\n- 평균: {N}ms 이내\n- 최대: {M}ms 이내\n\n[처리량]\n- {TPS} TPS 이상\n\n[동시사용자]\n- {동시사용자수}명',
+        tags: ['성능', '비기능']
+      },
+      {
+        id: 'interface',
+        category: '인터페이스',
+        name: 'API 연계',
+        title: '[인터페이스] {시스템} 연계',
+        content: '시스템은 {외부시스템}과 다음과 같이 연계하여야 한다.\n\n[프로토콜]\n- {프로토콜} (예: REST API, SOAP)\n\n[데이터형식]\n- {데이터형식} (예: JSON, XML)\n\n[연계주기]\n- {연계주기} (예: 실시간, 배치)',
+        tags: ['인터페이스', '연계']
+      }
+    ];
+
+    if (category) {
+      return templates.filter(t => t.category.includes(category));
+    }
+    return templates;
+  }
+
+  /**
+   * Create requirement from template
+   */
+  async createFromTemplate(templateId: string, replacements: Record<string, string>, creatorId: string) {
+    const templates = await this.getTemplates();
+    const template = templates.find(t => t.id === templateId);
+
+    if (!template) throw new Error('Template not found');
+
+    let title = template.title;
+    let content = template.content;
+
+    // Replace placeholders
+    for (const [key, value] of Object.entries(replacements)) {
+      const pattern = new RegExp(`\\{${key}\\}`, 'g');
+      title = title.replace(pattern, value);
+      content = content.replace(pattern, value);
+    }
+
+    return this.prisma.requirement.create({
+      data: {
+        code: `REQ-TPL-${Date.now()}`,
+        title,
+        content,
+        status: 'DRAFT',
+        version: 1,
+        creatorId,
+        trustGrade: 0.7,
+        maturity: 'DRAFT',
+      }
+    });
+  }
+
+  /**
+   * Get version history for a requirement
+   */
+  async getVersionHistory(id: string) {
+    const requirement = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, code: true, version: true, title: true, content: true, updatedAt: true }
+    });
+
+    if (!requirement) throw new Error('Requirement not found');
+
+    const history = await this.prisma.requirementHistory.findMany({
+      where: { requirementId: id },
+      orderBy: { version: 'desc' },
+      include: { changer: { select: { email: true, name: true } } }
+    });
+
+    return {
+      current: requirement,
+      totalVersions: requirement.version,
+      history: history.map(h => ({
+        version: h.version,
+        field: h.field,
+        oldValue: h.oldValue?.substring(0, 200),
+        newValue: h.newValue?.substring(0, 200),
+        changedAt: h.createdAt,
+        changedBy: h.changer?.email
+      }))
+    };
+  }
+
+  /**
+   * Get search suggestions based on existing requirements
+   */
+  async getSearchSuggestions(query: string, limit = 10) {
+    if (!query || query.length < 2) return [];
+
+    const requirements = await this.prisma.requirement.findMany({
+      where: {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { code: { contains: query, mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true, code: true, title: true },
+      take: limit,
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    return requirements.map(r => ({
+      id: r.id,
+      code: r.code,
+      title: r.title,
+      display: `${r.code}: ${r.title.substring(0, 50)}`
+    }));
+  }
+
+  /**
+   * Get recent activity across all requirements
+   */
+  async getRecentActivity(limit = 20) {
+    const [recentRequirements, recentComments, recentApprovals] = await Promise.all([
+      this.prisma.requirement.findMany({
+        where: { updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        select: { id: true, code: true, title: true, status: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: limit
+      }),
+      this.prisma.comment.findMany({
+        where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        select: { id: true, content: true, createdAt: true, requirement: { select: { code: true } }, author: { select: { email: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: limit
+      }),
+      this.prisma.approvalRequest.findMany({
+        where: { updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        select: { id: true, status: true, updatedAt: true, requirement: { select: { code: true } } },
+        orderBy: { updatedAt: 'desc' },
+        take: limit
+      })
+    ]);
+
+    const activities: any[] = [];
+
+    for (const r of recentRequirements) {
+      activities.push({
+        type: 'REQUIREMENT_UPDATED',
+        timestamp: r.updatedAt,
+        code: r.code,
+        title: r.title,
+        status: r.status
+      });
+    }
+
+    for (const c of recentComments) {
+      activities.push({
+        type: 'COMMENT_ADDED',
+        timestamp: c.createdAt,
+        code: c.requirement.code,
+        content: c.content.substring(0, 50),
+        author: c.author.email
+      });
+    }
+
+    for (const a of recentApprovals) {
+      activities.push({
+        type: 'APPROVAL_UPDATE',
+        timestamp: a.updatedAt,
+        code: a.requirement.code,
+        status: a.status
+      });
+    }
+
+    return activities
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
+  }
+
+  /**
+   * Auto-extract tags from requirement content
+   */
+  async extractTags(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { title: true, content: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const prompt = `다음 요건에서 주요 키워드/태그를 추출하세요.
+
+제목: ${req.title}
+내용: ${req.content}
+
+JSON 형식으로 반환:
+{ "tags": ["태그1", "태그2", "태그3"], "category": "기능요건|비기능요건|인터페이스", "domain": "도메인명" }
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 300,
+        temperature: 0.1
+      }, 'TAG_EXTRACTION');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return { requirementId: id, ...JSON.parse(jsonMatch[0]) };
+      }
+      return { requirementId: id, tags: [], category: 'Unknown', domain: 'Unknown' };
+    } catch (error) {
+      this.logger.error('Tag extraction failed', error);
+      return { requirementId: id, tags: [], error: 'Failed to extract tags' };
+    }
+  }
+
+  /**
+   * Generate executive summary for multiple requirements
+   */
+  async generateSummary(ids: string[]) {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { id: { in: ids } },
+      select: { code: true, title: true, content: true, status: true }
+    });
+
+    if (requirements.length === 0) return { error: 'No requirements found' };
+
+    const reqList = requirements.map(r => `[${r.code}] ${r.title}: ${r.content.substring(0, 200)}`).join('\n');
+
+    const prompt = `다음 요건들의 요약 보고서를 작성하세요.
+
+${reqList}
+
+JSON 형식으로 반환:
+{
+  "totalCount": ${requirements.length},
+  "summary": "전체 요건에 대한 2-3문장 요약",
+  "mainThemes": ["주요 테마1", "주요 테마2"],
+  "recommendations": ["권고사항1", "권고사항2"]
+}
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 500,
+        temperature: 0.3
+      }, 'SUMMARY_GENERATION');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      return { totalCount: requirements.length, summary: 'Summary generation failed' };
+    } catch (error) {
+      this.logger.error('Summary generation failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Batch AI enrichment with progress tracking
+   */
+  async batchEnrichWithProgress(ids: string[]) {
+    const results: { id: string; code: string; success: boolean; error?: string }[] = [];
+
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        const req = await this.prisma.requirement.findUnique({
+          where: { id: ids[i] },
+          select: { id: true, code: true, title: true, content: true }
+        });
+
+        if (!req) {
+          results.push({ id: ids[i], code: 'N/A', success: false, error: 'Not found' });
+          continue;
+        }
+
+        // Extract tags and analyze
+        await this.extractTags(ids[i]);
+        
+        results.push({ id: req.id, code: req.code, success: true });
+      } catch (error: any) {
+        results.push({ id: ids[i], code: 'N/A', success: false, error: error.message });
+      }
+    }
+
+    return {
+      total: ids.length,
+      success: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
+    };
+  }
 }

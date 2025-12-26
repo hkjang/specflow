@@ -212,4 +212,50 @@ export class RequirementsController {
   batchValidate(@Body() body: { ids: string[] }) {
     return this.requirementsService.batchValidate(body.ids);
   }
+
+  // --- UX Enhancement Endpoints ---
+
+  @Get('templates')
+  getTemplates(@Query('category') category?: string) {
+    return this.requirementsService.getTemplates(category);
+  }
+
+  @Post('templates/create')
+  createFromTemplate(@Body() body: { 
+    templateId: string; 
+    replacements: Record<string, string>; 
+    creatorId: string;
+  }) {
+    return this.requirementsService.createFromTemplate(body.templateId, body.replacements, body.creatorId);
+  }
+
+  @Get(':id/versions')
+  getVersionHistory(@Param('id') id: string) {
+    return this.requirementsService.getVersionHistory(id);
+  }
+
+  @Get('search/suggestions')
+  getSearchSuggestions(@Query('q') query: string, @Query('limit') limit?: number) {
+    return this.requirementsService.getSearchSuggestions(query, limit ? +limit : 10);
+  }
+
+  @Get('activity/recent')
+  getRecentActivity(@Query('limit') limit?: number) {
+    return this.requirementsService.getRecentActivity(limit ? +limit : 20);
+  }
+
+  @Get(':id/tags')
+  extractTags(@Param('id') id: string) {
+    return this.requirementsService.extractTags(id);
+  }
+
+  @Post('global/summary')
+  generateSummary(@Body() body: { ids: string[] }) {
+    return this.requirementsService.generateSummary(body.ids);
+  }
+
+  @Post('global/batch-enrich')
+  batchEnrichWithProgress(@Body() body: { ids: string[] }) {
+    return this.requirementsService.batchEnrichWithProgress(body.ids);
+  }
 }
