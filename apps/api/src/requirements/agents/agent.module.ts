@@ -9,6 +9,8 @@ import { ValidatorAgent } from './validator.agent';
 import { RiskDetectorAgent } from './risk-detector.agent';
 import { AccuracyHeatmapService } from './accuracy-heatmap.service';
 import { AutonomousGeneratorService } from './autonomous-generator.service';
+import { AgentMetricsService } from './agent-metrics.service';
+import { AgentLoggingService } from './agent-logging.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AiModule } from '../../ai/ai.module';
 
@@ -25,11 +27,16 @@ import { AiModule } from '../../ai/ai.module';
     RiskDetectorAgent,
     AccuracyHeatmapService,
     AutonomousGeneratorService,
+    AgentMetricsService,
+    AgentLoggingService,
   ],
   exports: [
     AgentOrchestratorService,
     AccuracyHeatmapService,
     AutonomousGeneratorService,
+    AgentMetricsService,
+    AgentLoggingService,
   ],
 })
 export class AgentModule {}
+

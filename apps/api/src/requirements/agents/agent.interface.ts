@@ -74,6 +74,7 @@ export interface AgentResult {
   metrics?: Record<string, number>;
   logs?: ThinkingLogEntry[];
   error?: string;
+  cached?: boolean;
 }
 
 /**

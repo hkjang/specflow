@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Put } from '@nestjs/common';
 import { AgentOrchestratorService } from './agent-orchestrator.service';
 import { ExtractionAgent } from './extraction.agent';
 import { RefinerAgent } from './refiner.agent';
@@ -8,12 +8,9 @@ import { ValidatorAgent } from './validator.agent';
 import { RiskDetectorAgent } from './risk-detector.agent';
 import { AccuracyHeatmapService } from './accuracy-heatmap.service';
 import { AutonomousGeneratorService } from './autonomous-generator.service';
-import { 
-  AgentType, 
-  AgentInput, 
-  AgentContext,
-  AutonomousGenerationConfig 
-} from './agent.interface';
+import { AgentMetricsService } from './agent-metrics.service';
+import { AgentLoggingService } from './agent-logging.service';
+import { AgentType, AgentInput } from './agent.interface';
 
 @Controller('requirements/agents')
 export class AgentController {
@@ -26,9 +23,10 @@ export class AgentController {
     private validatorAgent: ValidatorAgent,
     private riskDetectorAgent: RiskDetectorAgent,
     private heatmapService: AccuracyHeatmapService,
-    private autonomousGenerator: AutonomousGeneratorService
+    private autonomousGenerator: AutonomousGeneratorService,
+    private metricsService: AgentMetricsService,
+    private loggingService: AgentLoggingService
   ) {
-    // Register all agents
     this.orchestrator.registerAgent(this.extractionAgent);
     this.orchestrator.registerAgent(this.refinerAgent);
     this.orchestrator.registerAgent(this.classifierAgent);
@@ -37,112 +35,59 @@ export class AgentController {
     this.orchestrator.registerAgent(this.riskDetectorAgent);
   }
 
-  /**
-   * Get registered agents
-   */
   @Get()
   getAgents() {
-    return {
-      agents: this.orchestrator.getRegisteredAgents(),
-      totalAgents: 6
-    };
+    return { agents: this.orchestrator.getRegisteredAgents(), totalAgents: 6 };
   }
 
-  /**
-   * Extract requirements from document
-   */
   @Post('extract')
-  async extract(@Body() body: { content: string; type?: string }) {
-    const input: AgentInput = {
-      type: 'TEXT',
-      content: body.content
-    };
+  async extract(@Body() body: { content: string }) {
+    const input: AgentInput = { type: 'TEXT', content: body.content };
     const context = this.orchestrator.createSession();
     return this.orchestrator.executeAgent(AgentType.EXTRACTOR, input, context);
   }
 
-  /**
-   * Refine requirements
-   */
   @Post('refine')
   async refine(@Body() body: { requirements: any[] }) {
-    const input: AgentInput = {
-      type: 'REQUIREMENTS',
-      requirements: body.requirements
-    };
+    const input: AgentInput = { type: 'REQUIREMENTS', requirements: body.requirements };
     const context = this.orchestrator.createSession();
     return this.orchestrator.executeAgent(AgentType.REFINER, input, context);
   }
 
-  /**
-   * Classify requirements
-   */
   @Post('classify')
   async classify(@Body() body: { requirements: any[]; industry?: string }) {
-    const input: AgentInput = {
-      type: 'REQUIREMENTS',
-      requirements: body.requirements
-    };
+    const input: AgentInput = { type: 'REQUIREMENTS', requirements: body.requirements };
     const context = this.orchestrator.createSession();
     context.industry = body.industry;
     return this.orchestrator.executeAgent(AgentType.CLASSIFIER, input, context);
   }
 
-  /**
-   * Expand requirements (suggest missing)
-   */
   @Post('expand')
-  async expand(@Body() body: { 
-    requirements: any[]; 
-    industry?: string;
-    systemType?: string;
-  }) {
-    const input: AgentInput = {
-      type: 'REQUIREMENTS',
-      requirements: body.requirements
-    };
+  async expand(@Body() body: { requirements: any[]; industry?: string; systemType?: string }) {
+    const input: AgentInput = { type: 'REQUIREMENTS', requirements: body.requirements };
     const context = this.orchestrator.createSession();
     context.industry = body.industry;
     context.systemType = body.systemType as any;
     return this.orchestrator.executeAgent(AgentType.EXPANDER, input, context);
   }
 
-  /**
-   * Validate requirements
-   */
   @Post('validate')
   async validate(@Body() body: { requirements: any[]; industry?: string }) {
-    const input: AgentInput = {
-      type: 'REQUIREMENTS',
-      requirements: body.requirements
-    };
+    const input: AgentInput = { type: 'REQUIREMENTS', requirements: body.requirements };
     const context = this.orchestrator.createSession();
     context.industry = body.industry;
     return this.orchestrator.executeAgent(AgentType.VALIDATOR, input, context);
   }
 
-  /**
-   * Detect risks
-   */
   @Post('detect-risk')
-  async detectRisk(@Body() body: { 
-    requirements: any[]; 
-    industry?: string;
-    regulationLevel?: string;
-  }) {
-    const input: AgentInput = {
-      type: 'REQUIREMENTS',
-      requirements: body.requirements
-    };
+  async detectRisk(@Body() body: { requirements: any[]; industry?: string; regulationLevel?: string }) {
+    const input: AgentInput = { type: 'REQUIREMENTS', requirements: body.requirements };
     const context = this.orchestrator.createSession();
     context.industry = body.industry;
     context.regulationLevel = body.regulationLevel as any;
     return this.orchestrator.executeAgent(AgentType.RISK_DETECTOR, input, context);
   }
 
-  /**
-   * Execute full pipeline
-   */
   @Post('pipeline')
   async executePipeline(@Body() body: {
     content: string;
@@ -151,76 +96,155 @@ export class AgentController {
     systemType?: string;
     regulationLevel?: string;
   }) {
-    const input: AgentInput = {
-      type: 'TEXT',
-      content: body.content
-    };
-    
+    const input: AgentInput = { type: 'TEXT', content: body.content };
     const context = this.orchestrator.createSession();
     context.industry = body.industry;
     context.systemType = body.systemType as any;
     context.regulationLevel = body.regulationLevel as any;
 
     const agents = body.agents || [
-      AgentType.EXTRACTOR,
-      AgentType.REFINER,
-      AgentType.CLASSIFIER,
-      AgentType.EXPANDER,
-      AgentType.VALIDATOR,
-      AgentType.RISK_DETECTOR
+      AgentType.EXTRACTOR, AgentType.REFINER, AgentType.CLASSIFIER,
+      AgentType.EXPANDER, AgentType.VALIDATOR, AgentType.RISK_DETECTOR
     ];
 
-    return this.orchestrator.executePipeline(
-      { agents, stopOnError: false },
-      input,
-      context
-    );
+    return this.orchestrator.executePipeline({ agents, stopOnError: false }, input, context);
   }
 
-  // --- Accuracy Heatmap ---
+  // --- Heatmap ---
 
-  /**
-   * Get accuracy heatmap for requirements
-   */
   @Post('heatmap')
   getHeatmap(@Body() body: { requirements: any[]; industry?: string }) {
     return this.heatmapService.generateHeatmapMatrix(body.requirements, body.industry);
   }
 
-  /**
-   * Get industry benchmarks
-   */
   @Get('benchmarks')
   getBenchmarks(@Query('industry') industry?: string) {
-    return {
-      benchmarks: this.heatmapService.getBenchmarks(industry),
-      description: '산업별 정확도 벤치마크 데이터'
-    };
+    return { benchmarks: this.heatmapService.getBenchmarks(industry) };
   }
 
-  // --- Autonomous Generation ---
+  // --- Autonomous ---
 
-  /**
-   * Autonomous requirement generation
-   */
   @Post('autonomous/generate')
   async autonomousGenerate(@Body() config: {
     industry: string;
-    systemType: 'SAAS' | 'INTERNAL' | 'B2C' | 'B2B';
-    organizationMaturity: 'STARTUP' | 'MID' | 'ENTERPRISE';
-    regulationLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+    systemType: string;
+    organizationMaturity: string;
+    regulationLevel: string;
     maxRequirements?: number;
-    includeNonFunctional?: boolean;
-    includeSecurityRequirements?: boolean;
   }) {
-    return this.autonomousGenerator.generateRequirements(config);
+    return this.autonomousGenerator.generateRequirements(config as any);
   }
 
-  /**
-   * Get thinking log for a requirement
-   */
   @Get('thinking/:id')
   async getThinkingLog(@Param('id') id: string) {
     return this.autonomousGenerator.getThinkingLog(id);
   }
+
+  // --- Metrics (Phase 7) ---
+
+  @Get('metrics')
+  async getMetrics(@Query('days') days?: string) {
+    return this.metricsService.getMetrics(days ? parseInt(days) : 7);
+  }
+
+  @Get('metrics/:agentType')
+  async getAgentMetrics(@Param('agentType') agentType: string, @Query('days') days?: string) {
+    return this.metricsService.getAgentTypeMetrics(agentType, days ? parseInt(days) : 7);
+  }
+
+  @Get('logs')
+  async getExecutionLogs(@Query('limit') limit?: string) {
+    return this.loggingService.getRecentExecutions(limit ? parseInt(limit) : 50);
+  }
+
+  @Get('logs/:id')
+  async getExecutionLog(@Param('id') id: string) {
+    return this.loggingService.getExecution(id);
+  }
+
+  // --- Config ---
+
+  @Get('config')
+  async getAllConfigs() {
+    return this.metricsService.getAllConfigs();
+  }
+
+  @Get('config/:agentType')
+  async getConfig(@Param('agentType') agentType: string) {
+    return this.metricsService.getConfig(agentType);
+  }
+
+  @Put('config/:agentType')
+  async updateConfig(@Param('agentType') agentType: string, @Body() data: {
+    modelName?: string;
+    temperature?: number;
+    maxTokens?: number;
+    isEnabled?: boolean;
+  }) {
+    return this.metricsService.updateConfig(agentType, data);
+  }
+
+  // --- Feedback ---
+
+  @Post('feedback')
+  async submitFeedback(@Body() data: {
+    executionLogId?: string;
+    agentType: string;
+    rating: number;
+    comment?: string;
+    isAccurate?: boolean;
+    userId: string;
+  }) {
+    return this.metricsService.submitFeedback(data);
+  }
+
+  @Get('feedback/stats')
+  async getFeedbackStats() {
+    return this.metricsService.getFeedbackStats();
+  }
+
+  // --- Phase 8: Advanced Pipeline ---
+
+  /**
+   * Parallel pipeline execution
+   */
+  @Post('pipeline/parallel')
+  async executePipelineParallel(@Body() body: {
+    content: string;
+    agentGroups: string[][];
+    industry?: string;
+  }) {
+    const input: AgentInput = { type: 'TEXT', content: body.content };
+    const context = this.orchestrator.createSession();
+    context.industry = body.industry;
+
+    const groups = body.agentGroups.map(group =>
+      group.map(name => AgentType[name as keyof typeof AgentType])
+    );
+
+    return this.orchestrator.executePipelineParallel(groups, input, context);
+  }
+
+  /**
+   * Quality analysis for requirements
+   */
+  @Post('quality-analysis')
+  async analyzeQuality(@Body() body: { requirements: any[]; industry?: string }) {
+    return this.orchestrator.analyzeRequirementQuality(body.requirements, body.industry);
+  }
+
+  /**
+   * Cache management
+   */
+  @Get('cache/stats')
+  getCacheStats() {
+    return this.orchestrator.getCacheStats();
+  }
+
+  @Post('cache/clear')
+  clearCache() {
+    this.orchestrator.clearCache();
+    return { message: 'Cache cleared' };
+  }
 }
+

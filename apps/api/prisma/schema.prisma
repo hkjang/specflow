@@ -1015,3 +1015,69 @@ model IndustryBenchmark {
   @@unique([industry, category])
   @@index([industry])
 }
+
+// ========== Phase 7: Advanced Agent Models ==========
+
+// Agent execution logging
+model AgentExecutionLog {
+  id            String   @id @default(uuid())
+  sessionId     String
+  agentType     String   // EXTRACTOR, REFINER, CLASSIFIER, etc.
+  
+  input         Json?
+  output        Json?
+  
+  success       Boolean
+  error         String?
+  
+  tokenCount    Int      @default(0)
+  executionMs   Int      @default(0)
+  
+  userId        String?
+  projectId     String?
+  
+  createdAt     DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([agentType])
+  @@index([createdAt])
+}
+
+// Agent configuration per type
+model AgentConfig {
+  id            String   @id @default(uuid())
+  agentType     String   @unique
+  
+  modelName     String   @default("gpt-4o-mini")
+  temperature   Float    @default(0.3)
+  maxTokens     Int      @default(2000)
+  
+  promptTemplate String? @db.Text
+  systemPrompt  String?  @db.Text
+  
+  isEnabled     Boolean  @default(true)
+  priority      Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// User feedback for agent results
+model AgentFeedback {
+  id            String   @id @default(uuid())
+  executionLogId String?
+  
+  agentType     String
+  rating        Int      // 1-5
+  comment       String?
+  
+  isAccurate    Boolean?
+  suggestedFix  String?  @db.Text
+  
+  userId        String
+  
+  createdAt     DateTime @default(now())
+
+  @@index([agentType])
+  @@index([rating])
+}
