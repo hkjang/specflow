@@ -1790,4 +1790,372 @@ JSON만 반환하세요.`;
       complexityLevel: complexityScore < 30 ? 'LOW' : complexityScore < 60 ? 'MEDIUM' : 'HIGH'
     };
   }
+
+  // --- Report Generation ---
+
+  /**
+   * Generate comprehensive PDF-ready report data
+   */
+  async generateReport(params: { 
+    ids?: string[]; 
+    status?: string; 
+    format?: 'summary' | 'detailed' | 'executive' 
+  }) {
+    const where: any = {};
+    if (params.ids?.length) where.id = { in: params.ids };
+    if (params.status) where.status = params.status;
+
+    const requirements = await this.prisma.requirement.findMany({
+      where,
+      include: {
+        business: true,
+        function: true,
+        creator: { select: { email: true, name: true } },
+        qualityMetric: true
+      },
+      orderBy: { code: 'asc' }
+    });
+
+    const stats = {
+      total: requirements.length,
+      byStatus: {} as Record<string, number>,
+      avgQuality: 0,
+      highRiskCount: 0
+    };
+
+    let totalQuality = 0;
+    for (const r of requirements) {
+      stats.byStatus[r.status] = (stats.byStatus[r.status] || 0) + 1;
+      if (r.qualityMetric) {
+        totalQuality += r.qualityMetric.overallScore || 0;
+        if (r.qualityMetric.overallScore < 50) stats.highRiskCount++;
+      }
+    }
+    stats.avgQuality = requirements.length > 0 ? Math.round(totalQuality / requirements.length) : 0;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      format: params.format || 'summary',
+      statistics: stats,
+      requirements: requirements.map(r => ({
+        code: r.code,
+        title: r.title,
+        content: params.format === 'detailed' ? r.content : r.content.substring(0, 200),
+        status: r.status,
+        business: r.business?.name,
+        function: r.function?.name,
+        creator: r.creator?.name || r.creator?.email,
+        trustGrade: r.trustGrade,
+        qualityScore: r.qualityMetric?.overallScore
+      }))
+    };
+  }
+
+  /**
+   * Get graph data for visualization (nodes + edges)
+   */
+  async getGraphData() {
+    const [requirements, relations] = await Promise.all([
+      this.prisma.requirement.findMany({
+        select: { id: true, code: true, title: true, status: true, trustGrade: true },
+        where: { status: { not: 'DEPRECATED' } }
+      }),
+      this.prisma.requirementRelation.findMany({
+        select: { id: true, sourceId: true, targetId: true, type: true }
+      })
+    ]);
+
+    const nodes = requirements.map(r => ({
+      id: r.id,
+      label: r.code,
+      title: r.title,
+      group: r.status,
+      value: Math.round((r.trustGrade || 0.5) * 10)
+    }));
+
+    const edges = relations.map(r => ({
+      id: r.id,
+      from: r.sourceId,
+      to: r.targetId,
+      label: r.type,
+      arrows: 'to'
+    }));
+
+    return {
+      nodes,
+      edges,
+      stats: {
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        isolated: nodes.filter(n => 
+          !edges.some(e => e.from === n.id || e.to === n.id)
+        ).length
+      }
+    };
+  }
+
+  /**
+   * Risk analysis across requirements
+   */
+  async analyzeRisk() {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { status: { not: 'DEPRECATED' } },
+      include: { qualityMetric: true }
+    });
+
+    const riskItems: { id: string; code: string; riskLevel: string; reasons: string[] }[] = [];
+
+    for (const r of requirements) {
+      const reasons: string[] = [];
+      
+      if (!r.qualityMetric) reasons.push('품질 분석 미수행');
+      else if (r.qualityMetric.overallScore < 50) reasons.push('품질 점수 낮음');
+      
+      if (r.trustGrade && r.trustGrade < 0.5) reasons.push('신뢰도 낮음');
+      if (r.content.length < 50) reasons.push('내용 불충분');
+      if (r.status === 'DRAFT' && this.daysSince(r.createdAt) > 30) reasons.push('장기 미처리');
+
+      if (reasons.length > 0) {
+        riskItems.push({
+          id: r.id,
+          code: r.code,
+          riskLevel: reasons.length >= 3 ? 'HIGH' : reasons.length >= 2 ? 'MEDIUM' : 'LOW',
+          reasons
+        });
+      }
+    }
+
+    return {
+      analyzedAt: new Date().toISOString(),
+      totalAnalyzed: requirements.length,
+      riskSummary: {
+        high: riskItems.filter(r => r.riskLevel === 'HIGH').length,
+        medium: riskItems.filter(r => r.riskLevel === 'MEDIUM').length,
+        low: riskItems.filter(r => r.riskLevel === 'LOW').length
+      },
+      riskItems: riskItems.sort((a, b) => 
+        a.riskLevel === 'HIGH' ? -1 : b.riskLevel === 'HIGH' ? 1 : 0
+      )
+    };
+  }
+
+  private daysSince(date: Date): number {
+    return Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Coverage matrix: requirements vs business functions
+   */
+  async getCoverageMatrix() {
+    const [businesses, functions, requirements] = await Promise.all([
+      this.prisma.business.findMany({ select: { id: true, name: true } }),
+      this.prisma.function.findMany({ select: { id: true, name: true, businessId: true } }),
+      this.prisma.requirement.findMany({
+        where: { status: { not: 'DEPRECATED' } },
+        select: { businessId: true, functionId: true }
+      })
+    ]);
+
+    const matrix: Record<string, Record<string, number>> = {};
+
+    for (const b of businesses) {
+      matrix[b.name] = {};
+      const bizFunctions = functions.filter(f => f.businessId === b.id);
+      for (const f of bizFunctions) {
+        const count = requirements.filter(r => r.functionId === f.id).length;
+        matrix[b.name][f.name] = count;
+      }
+    }
+
+    return {
+      generatedAt: new Date().toISOString(),
+      businesses: businesses.map(b => b.name),
+      functions: functions.map(f => f.name),
+      matrix,
+      uncovered: functions
+        .filter(f => !requirements.some(r => r.functionId === f.id))
+        .map(f => f.name)
+    };
+  }
+
+  /**
+   * AI-powered smart split for complex requirements
+   */
+  async smartSplit(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, code: true, title: true, content: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const prompt = `다음 요건이 복잡하다면 단일 요건들로 분할하세요.
+
+제목: ${req.title}
+내용: ${req.content}
+
+JSON 형식으로 반환:
+{
+  "shouldSplit": true/false,
+  "reason": "분할 이유",
+  "splitRequirements": [
+    { "title": "분할된 요건1 제목", "content": "분할된 요건1 내용" },
+    { "title": "분할된 요건2 제목", "content": "분할된 요건2 내용" }
+  ]
+}
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1500,
+        temperature: 0.3
+      }, 'SMART_SPLIT');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return { originalId: id, originalCode: req.code, ...JSON.parse(jsonMatch[0]) };
+      }
+      return { originalId: id, shouldSplit: false, reason: 'AI 분석 실패' };
+    } catch (error) {
+      this.logger.error('Smart split failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Auto-prioritize requirements based on multiple factors
+   */
+  async autoPrioritize(ids: string[]) {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { id: { in: ids } },
+      include: { qualityMetric: true, business: true }
+    });
+
+    const prioritized = requirements.map(r => {
+      let score = 50; // Base score
+
+      // Quality factor
+      if (r.qualityMetric?.overallScore) score += (r.qualityMetric.overallScore - 50) * 0.3;
+      
+      // Trust factor
+      if (r.trustGrade) score += (r.trustGrade - 0.5) * 20;
+      
+      // Status factor
+      if (r.status === 'REVIEW') score += 10;
+      if (r.status === 'APPROVED') score -= 5;
+      
+      // Age factor (older = higher priority)
+      const age = this.daysSince(r.createdAt);
+      if (age > 30) score += 10;
+      if (age > 60) score += 10;
+
+      return {
+        id: r.id,
+        code: r.code,
+        title: r.title,
+        priorityScore: Math.round(Math.max(0, Math.min(100, score))),
+        factors: {
+          quality: r.qualityMetric?.overallScore || 0,
+          trust: r.trustGrade || 0,
+          age,
+          status: r.status
+        }
+      };
+    });
+
+    return {
+      prioritized: prioritized.sort((a, b) => b.priorityScore - a.priorityScore),
+      highPriority: prioritized.filter(p => p.priorityScore >= 70).length,
+      mediumPriority: prioritized.filter(p => p.priorityScore >= 40 && p.priorityScore < 70).length,
+      lowPriority: prioritized.filter(p => p.priorityScore < 40).length
+    };
+  }
+
+  /**
+   * Generate changelog for a date range
+   */
+  async getChangelog(dateFrom: string, dateTo: string) {
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    to.setHours(23, 59, 59);
+
+    const [created, updated, history] = await Promise.all([
+      this.prisma.requirement.findMany({
+        where: { createdAt: { gte: from, lte: to } },
+        select: { code: true, title: true, createdAt: true, status: true }
+      }),
+      this.prisma.requirement.findMany({
+        where: { 
+          updatedAt: { gte: from, lte: to },
+          createdAt: { lt: from }
+        },
+        select: { code: true, title: true, updatedAt: true, status: true }
+      }),
+      this.prisma.requirementHistory.findMany({
+        where: { createdAt: { gte: from, lte: to } },
+        include: { requirement: { select: { code: true } }, changer: { select: { email: true } } }
+      })
+    ]);
+
+    return {
+      period: { from: dateFrom, to: dateTo },
+      summary: {
+        created: created.length,
+        updated: updated.length,
+        changes: history.length
+      },
+      created: created.map(r => ({ code: r.code, title: r.title, date: r.createdAt })),
+      updated: updated.map(r => ({ code: r.code, title: r.title, date: r.updatedAt })),
+      recentChanges: history.slice(0, 50).map(h => ({
+        code: h.requirement.code,
+        field: h.field,
+        changedBy: h.changer.email,
+        date: h.createdAt
+      }))
+    };
+  }
+
+  /**
+   * Compliance check against standard rules
+   */
+  async checkCompliance(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, code: true, title: true, content: true, status: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const rules = [
+      { id: 'REQ-001', name: '제목 길이', check: () => req.title.length >= 5 && req.title.length <= 200 },
+      { id: 'REQ-002', name: '내용 최소 길이', check: () => req.content.length >= 20 },
+      { id: 'REQ-003', name: '표준 표현 사용', check: () => /하여야|해야|한다/.test(req.content) },
+      { id: 'REQ-004', name: '모호한 표현 없음', check: () => !/등|기타|약간|적절히/.test(req.content) },
+      { id: 'REQ-005', name: '측정 가능', check: () => /초|분|%|개|건/.test(req.content) },
+      { id: 'REQ-006', name: '코드 규칙', check: () => /^REQ-/.test(req.code) },
+      { id: 'REQ-007', name: '예외 처리 명시', check: () => /예외|오류|에러|실패/.test(req.content) },
+    ];
+
+    const results = rules.map(r => ({
+      ruleId: r.id,
+      ruleName: r.name,
+      passed: r.check()
+    }));
+
+    const passedCount = results.filter(r => r.passed).length;
+
+    return {
+      requirementId: id,
+      code: req.code,
+      complianceScore: Math.round((passedCount / rules.length) * 100),
+      passed: passedCount,
+      failed: rules.length - passedCount,
+      results,
+      status: passedCount === rules.length ? 'COMPLIANT' : passedCount >= 5 ? 'PARTIAL' : 'NON_COMPLIANT'
+    };
+  }
 }

@@ -316,4 +316,48 @@ export class RequirementsController {
   getComplexityMetrics(@Param('id') id: string) {
     return this.requirementsService.getComplexityMetrics(id);
   }
+
+  // --- Reports & Analytics ---
+
+  @Post('reports/generate')
+  generateReport(@Body() body: { ids?: string[]; status?: string; format?: 'summary' | 'detailed' | 'executive' }) {
+    return this.requirementsService.generateReport(body);
+  }
+
+  @Get('analytics/graph')
+  getGraphData() {
+    return this.requirementsService.getGraphData();
+  }
+
+  @Get('analytics/risk')
+  analyzeRisk() {
+    return this.requirementsService.analyzeRisk();
+  }
+
+  @Get('analytics/coverage')
+  getCoverageMatrix() {
+    return this.requirementsService.getCoverageMatrix();
+  }
+
+  @Get('analytics/changelog')
+  getChangelog(@Query('from') from: string, @Query('to') to: string) {
+    return this.requirementsService.getChangelog(from, to);
+  }
+
+  // --- AI Smart Features ---
+
+  @Post(':id/smart-split')
+  smartSplit(@Param('id') id: string) {
+    return this.requirementsService.smartSplit(id);
+  }
+
+  @Post('global/prioritize')
+  autoPrioritize(@Body() body: { ids: string[] }) {
+    return this.requirementsService.autoPrioritize(body.ids);
+  }
+
+  @Get(':id/compliance')
+  checkCompliance(@Param('id') id: string) {
+    return this.requirementsService.checkCompliance(id);
+  }
 }
