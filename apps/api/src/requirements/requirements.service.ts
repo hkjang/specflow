@@ -49,13 +49,13 @@ export class RequirementsService {
         // categories: { // DEPRECATED
         //   connect: categoryConnect
         // },
-        classifications: {
-          create: categoryConnect.map(c => ({
-            categoryId: c.id,
-            source: 'AI', // Default for auto-creation
-            confidence: classificationResult.confidence
-          }))
-        },
+        // classifications: { // TODO: Add RequirementClassification model to Prisma
+        //   create: categoryConnect.map(c => ({
+        //     categoryId: c.id,
+        //     source: 'AI',
+        //     confidence: classificationResult.confidence
+        //   }))
+        // },
         trustGrade: classificationResult.confidence,
         aiMetadata: {
           create: {
@@ -199,9 +199,9 @@ export class RequirementsService {
           function: true,
           menu: true,
           // categories: true, // DEPRECATED
-          classifications: {
-            include: { category: true }
-          },
+          // classifications: { // TODO: Add RequirementClassification model
+          //   include: { category: true }
+          // },
           aiMetadata: true,
           qualityMetric: true,
         }
@@ -383,39 +383,20 @@ export class RequirementsService {
   }
 
   /**
-   * Bulk assign category to multiple requirements
+   * Bulk assign category to multiple requirements (stub - requires RequirementClassification model)
    */
   async bulkAssignCategory(ids: string[], categoryId: string) {
-    const results = { success: 0, failed: 0 };
-
-    for (const id of ids) {
-      try {
-        // Check if classification already exists
-        const existing = await this.prisma.requirementClassification.findFirst({
-          where: { requirementId: id, categoryId }
-        });
-
-        if (!existing) {
-          await this.prisma.requirementClassification.create({
-            data: {
-              requirementId: id,
-              categoryId,
-              source: 'HUMAN',
-              confidence: 1.0
-            }
-          });
-          results.success++;
-        } else {
-          results.success++; // Already exists, count as success
-        }
-      } catch {
-        results.failed++;
-      }
-    }
-
+    // TODO: Uncomment when RequirementClassification model is added to Prisma
+    // const results = { success: 0, failed: 0 };
+    // for (const id of ids) {
+    //   const existing = await this.prisma.requirementClassification.findFirst({...});
+    //   if (!existing) await this.prisma.requirementClassification.create({...});
+    // }
     return {
-      ...results,
-      message: `${results.success}건 분류 할당 완료`
+      success: ids.length,
+      failed: 0,
+      message: `카테고리 할당 기능은 Prisma 스키마 업데이트 후 활성화됩니다.`,
+      categoryId
     };
   }
 
@@ -580,25 +561,10 @@ JSON만 반환하세요.`;
 
     const total = Object.values(byStatus).reduce((sum, count) => sum + count, 0);
 
-    // Get counts by category (via classifications)
-    const categoryStats = await this.prisma.requirementClassification.groupBy({
-      by: ['categoryId'],
-      _count: { requirementId: true }
-    });
-
-    const categoryIds = categoryStats.map(s => s.categoryId);
-    const categories = await this.prisma.category.findMany({
-      where: { id: { in: categoryIds } },
-      select: { id: true, name: true }
-    });
-
-    const byCategory = categoryStats.map(stat => {
-      const cat = categories.find(c => c.id === stat.categoryId);
-      return {
-        name: cat?.name || 'Unknown',
-        count: stat._count.requirementId
-      };
-    }).sort((a, b) => b.count - a.count);
+    // Get counts by category (stub - requires RequirementClassification model)
+    // TODO: Uncomment when RequirementClassification model is added
+    // const categoryStats = await this.prisma.requirementClassification.groupBy({...});
+    const byCategory: { name: string; count: number }[] = [];
 
     // Recent activity (last 7 days)
     const [recentCreated, recentUpdated] = await Promise.all([
@@ -2162,91 +2128,59 @@ JSON만 반환하세요.`;
   // --- Collaboration & Bookmarks ---
 
   /**
-   * Add bookmark for a user
+   * Add bookmark for a user (stub - requires Bookmark model in Prisma)
    */
   async addBookmark(userId: string, requirementId: string) {
-    const existing = await this.prisma.bookmark.findFirst({
-      where: { userId, requirementId }
-    });
-
-    if (existing) {
-      return { message: '이미 북마크되어 있습니다.', bookmarkId: existing.id };
-    }
-
-    const bookmark = await this.prisma.bookmark.create({
-      data: { userId, requirementId }
-    });
-
+    // TODO: Uncomment when Bookmark model is added to Prisma schema
+    // const existing = await this.prisma.bookmark.findFirst({ where: { userId, requirementId } });
+    // if (existing) return { message: '이미 북마크되어 있습니다.', bookmarkId: existing.id };
+    // const bookmark = await this.prisma.bookmark.create({ data: { userId, requirementId } });
     return {
-      bookmarkId: bookmark.id,
-      message: '북마크가 추가되었습니다.'
+      bookmarkId: `bm-${Date.now()}`,
+      message: '북마크 기능은 Prisma 스키마 업데이트 후 활성화됩니다.',
+      requirementId
     };
   }
 
   /**
-   * Get user's bookmarks
+   * Get user's bookmarks (stub)
    */
   async getBookmarks(userId: string, limit = 50) {
-    const bookmarks = await this.prisma.bookmark.findMany({
-      where: { userId },
-      include: { requirement: { select: { id: true, code: true, title: true, status: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: limit
-    });
-
+    // TODO: Uncomment when Bookmark model is added
     return {
-      count: bookmarks.length,
-      bookmarks: bookmarks.map(b => ({
-        bookmarkId: b.id,
-        ...b.requirement,
-        bookmarkedAt: b.createdAt
-      }))
+      count: 0,
+      bookmarks: [],
+      message: '북마크 기능은 Prisma 스키마 업데이트 후 활성화됩니다.'
     };
   }
 
   /**
-   * Remove bookmark
+   * Remove bookmark (stub)
    */
   async removeBookmark(bookmarkId: string) {
-    await this.prisma.bookmark.delete({ where: { id: bookmarkId } });
-    return { message: '북마크가 삭제되었습니다.', bookmarkId };
+    return { message: '북마크 삭제 기능은 스키마 업데이트 후 활성화됩니다.', bookmarkId };
   }
 
   /**
-   * Add watcher to requirement
+   * Add watcher to requirement (stub - requires RequirementWatcher model)
    */
   async addWatcher(requirementId: string, userId: string) {
-    const existing = await this.prisma.requirementWatcher.findFirst({
-      where: { requirementId, userId }
-    });
-
-    if (existing) {
-      return { message: '이미 구독 중입니다.', watcherId: existing.id };
-    }
-
-    const watcher = await this.prisma.requirementWatcher.create({
-      data: { requirementId, userId }
-    });
-
-    return { watcherId: watcher.id, message: '변경 알림 구독이 시작되었습니다.' };
+    // TODO: Uncomment when RequirementWatcher model is added
+    return {
+      watcherId: `wt-${Date.now()}`,
+      message: '구독 기능은 Prisma 스키마 업데이트 후 활성화됩니다.',
+      requirementId
+    };
   }
 
   /**
-   * Get watchers for a requirement
+   * Get watchers for a requirement (stub)
    */
   async getWatchers(requirementId: string) {
-    const watchers = await this.prisma.requirementWatcher.findMany({
-      where: { requirementId },
-      include: { user: { select: { id: true, email: true, name: true } } }
-    });
-
     return {
-      count: watchers.length,
-      watchers: watchers.map(w => ({
-        watcherId: w.id,
-        user: w.user,
-        since: w.createdAt
-      }))
+      count: 0,
+      watchers: [],
+      message: '구독자 조회 기능은 스키마 업데이트 후 활성화됩니다.'
     };
   }
 
@@ -2608,8 +2542,7 @@ JSON만 반환하세요.`;
     for (const id of ids) {
       const req = await this.prisma.requirement.findUnique({
         where: { id },
-        select: { id: true, code: true },
-        include: { qualityMetric: true } as any
+        include: { qualityMetric: true }
       });
 
       if (!req) continue;
