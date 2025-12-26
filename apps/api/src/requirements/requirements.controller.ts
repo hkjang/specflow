@@ -25,8 +25,26 @@ export class RequirementsController {
     @Query('category') category?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('trustMin') trustMin?: number,
+    @Query('businessId') businessId?: string,
   ) {
-    return this.requirementsService.findAll({ status, search, category, page: page ? +page : 1, limit: limit ? +limit : 50 });
+    return this.requirementsService.findAll({ 
+      status, 
+      search, 
+      category, 
+      page: page ? +page : 1, 
+      limit: limit ? +limit : 50,
+      sortBy,
+      sortOrder,
+      dateFrom,
+      dateTo,
+      trustMin: trustMin ? +trustMin : undefined,
+      businessId,
+    });
   }
 
   @Post('global/bulk-status')
@@ -37,6 +55,21 @@ export class RequirementsController {
   @Post('global/bulk-delete')
   bulkDelete(@Body() body: { ids: string[] }) {
     return this.requirementsService.bulkDelete(body.ids);
+  }
+
+  @Post('global/bulk-category')
+  bulkAssignCategory(@Body() body: { ids: string[]; categoryId: string }) {
+    return this.requirementsService.bulkAssignCategory(body.ids, body.categoryId);
+  }
+
+  @Post('global/import')
+  bulkImport(@Body() body: { items: { title: string; content: string; status?: string; businessName?: string }[]; creatorId: string }) {
+    return this.requirementsService.bulkImport(body.items, body.creatorId || 'system');
+  }
+
+  @Post(':id/clone')
+  cloneRequirement(@Param('id') id: string, @Body() body: { newCode?: string }) {
+    return this.requirementsService.cloneRequirement(id, { newCode: body.newCode });
   }
 
   // --- AI Enrichment Endpoints ---
@@ -55,6 +88,21 @@ export class RequirementsController {
     return this.enrichmentService.enrichRequirement(id);
   }
   // --- End AI Enrichment ---
+
+  // --- Statistics & Export Endpoints ---
+  @Get('stats')
+  getStats() {
+    return this.requirementsService.getStats();
+  }
+
+  @Get('export')
+  exportToCsv(
+    @Query('status') status?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.requirementsService.exportToCsv({ status, category });
+  }
+  // --- End Statistics & Export ---
 
   // --- Duplicate Detection Endpoints ---
   @Get('duplicates/scan')
@@ -91,6 +139,24 @@ export class RequirementsController {
   @Get(':id/comments')
   getComments(@Param('id') id: string) {
     return this.requirementsService.getComments(id);
+  }
+
+  @Get(':id/related')
+  getRelatedRequirements(
+    @Param('id') id: string,
+    @Query('limit') limit?: number,
+    @Query('threshold') threshold?: number,
+  ) {
+    return this.requirementsService.getRelatedRequirements(
+      id,
+      limit ? +limit : 5,
+      threshold ? +threshold : 0.6
+    );
+  }
+
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string) {
+    return this.requirementsService.getTimeline(id);
   }
 
   @Delete(':id')
