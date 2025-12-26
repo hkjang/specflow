@@ -1463,4 +1463,331 @@ JSON만 반환하세요.`;
       results
     };
   }
+
+  // --- Relation Management ---
+
+  /**
+   * Add relation between two requirements
+   */
+  async addRelation(sourceId: string, targetId: string, type: string, reason?: string) {
+    // Validate both exist
+    const [source, target] = await Promise.all([
+      this.prisma.requirement.findUnique({ where: { id: sourceId }, select: { code: true } }),
+      this.prisma.requirement.findUnique({ where: { id: targetId }, select: { code: true } })
+    ]);
+
+    if (!source || !target) throw new Error('Source or target requirement not found');
+
+    // Check for existing relation
+    const existing = await this.prisma.requirementRelation.findFirst({
+      where: { sourceId, targetId }
+    });
+
+    if (existing) {
+      return { message: 'Relation already exists', relationId: existing.id };
+    }
+
+    const relation = await this.prisma.requirementRelation.create({
+      data: {
+        sourceId,
+        targetId,
+        type: type as any,
+        reason
+      }
+    });
+
+    return {
+      relationId: relation.id,
+      source: source.code,
+      target: target.code,
+      type,
+      message: '관계가 생성되었습니다.'
+    };
+  }
+
+  /**
+   * Get all relations for a requirement
+   */
+  async getRelations(id: string) {
+    const [outgoing, incoming] = await Promise.all([
+      this.prisma.requirementRelation.findMany({
+        where: { sourceId: id },
+        include: { target: { select: { id: true, code: true, title: true } } }
+      }),
+      this.prisma.requirementRelation.findMany({
+        where: { targetId: id },
+        include: { source: { select: { id: true, code: true, title: true } } }
+      })
+    ]);
+
+    return {
+      outgoing: outgoing.map(r => ({
+        relationId: r.id,
+        type: r.type,
+        target: r.target,
+        reason: r.reason
+      })),
+      incoming: incoming.map(r => ({
+        relationId: r.id,
+        type: r.type,
+        source: r.source,
+        reason: r.reason
+      })),
+      totalRelations: outgoing.length + incoming.length
+    };
+  }
+
+  /**
+   * Remove a relation
+   */
+  async removeRelation(relationId: string) {
+    await this.prisma.requirementRelation.delete({
+      where: { id: relationId }
+    });
+    return { message: '관계가 삭제되었습니다.', relationId };
+  }
+
+  // --- Audit & Logging ---
+
+  /**
+   * Log an audit event
+   */
+  async logAudit(action: string, resourceId: string, actorId?: string, diff?: any) {
+    return this.prisma.auditLog.create({
+      data: {
+        action,
+        resource: 'Requirement',
+        resourceId,
+        actorId,
+        diff
+      }
+    });
+  }
+
+  /**
+   * Get audit logs for a requirement
+   */
+  async getAuditLogs(id: string, limit = 50) {
+    return this.prisma.auditLog.findMany({
+      where: { resourceId: id, resource: 'Requirement' },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+  }
+
+  // --- Health & Stats ---
+
+  /**
+   * Get health statistics for requirements module
+   */
+  async getHealthStats() {
+    const [total, byStatus, recentCreated, avgQuality] = await Promise.all([
+      this.prisma.requirement.count(),
+      this.prisma.requirement.groupBy({
+        by: ['status'],
+        _count: { id: true }
+      }),
+      this.prisma.requirement.count({
+        where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
+      }),
+      this.prisma.requirement.aggregate({
+        _avg: { trustGrade: true }
+      })
+    ]);
+
+    return {
+      health: 'OK',
+      timestamp: new Date().toISOString(),
+      stats: {
+        totalRequirements: total,
+        createdLast24h: recentCreated,
+        avgTrustGrade: (avgQuality._avg.trustGrade || 0).toFixed(2),
+        byStatus: byStatus.reduce((acc, s) => {
+          acc[s.status] = s._count.id;
+          return acc;
+        }, {} as Record<string, number>)
+      }
+    };
+  }
+
+  // --- Dependency Check ---
+
+  /**
+   * Check if requirement can be safely deleted (no dependencies)
+   */
+  async checkDependencies(id: string) {
+    const [relations, children, comments] = await Promise.all([
+      this.prisma.requirementRelation.count({
+        where: { OR: [{ sourceId: id }, { targetId: id }] }
+      }),
+      this.prisma.requirement.count({ where: { parentId: id } }),
+      this.prisma.comment.count({ where: { requirementId: id } })
+    ]);
+
+    const canDelete = relations === 0 && children === 0;
+
+    return {
+      requirementId: id,
+      canDelete,
+      dependencies: {
+        relations,
+        children,
+        comments
+      },
+      message: canDelete ? '삭제 가능합니다.' : '의존 관계가 있어 삭제할 수 없습니다.'
+    };
+  }
+
+  // --- Archive & Restore ---
+
+  /**
+   * Bulk archive requirements (set to DEPRECATED)
+   */
+  async bulkArchive(ids: string[]) {
+    const result = await this.prisma.requirement.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'DEPRECATED' }
+    });
+
+    return {
+      archived: result.count,
+      message: `${result.count}개 요건이 보관되었습니다.`
+    };
+  }
+
+  /**
+   * Restore archived requirement
+   */
+  async restore(id: string) {
+    const updated = await this.prisma.requirement.update({
+      where: { id },
+      data: { status: 'DRAFT' }
+    });
+
+    return {
+      id: updated.id,
+      code: updated.code,
+      newStatus: 'DRAFT',
+      message: '요건이 복원되었습니다.'
+    };
+  }
+
+  // --- AI Translation ---
+
+  /**
+   * Translate requirement to another language
+   */
+  async translateRequirement(id: string, targetLang: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { title: true, content: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const langNames: Record<string, string> = {
+      'en': 'English',
+      'ja': 'Japanese',
+      'zh': 'Chinese',
+      'ko': 'Korean'
+    };
+
+    const prompt = `다음 요건을 ${langNames[targetLang] || targetLang}로 번역하세요.
+
+제목: ${req.title}
+내용: ${req.content}
+
+JSON 형식으로 반환:
+{ "title": "번역된 제목", "content": "번역된 내용" }
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1500,
+        temperature: 0.2
+      }, 'TRANSLATION');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        const translated = JSON.parse(jsonMatch[0]);
+        
+        // Update contentI18n
+        const currentI18n = await this.prisma.requirement.findUnique({
+          where: { id },
+          select: { contentI18n: true }
+        });
+
+        const newI18n = {
+          ...(currentI18n?.contentI18n as object || {}),
+          [targetLang]: translated
+        };
+
+        await this.prisma.requirement.update({
+          where: { id },
+          data: { contentI18n: newI18n }
+        });
+
+        return {
+          requirementId: id,
+          targetLang,
+          ...translated
+        };
+      }
+
+      return { error: 'Translation failed' };
+    } catch (error) {
+      this.logger.error('Translation failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get word count and complexity metrics
+   */
+  async getComplexityMetrics(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { title: true, content: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const words = req.content.split(/\s+/).filter(w => w.length > 0);
+    const sentences = req.content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const paragraphs = req.content.split(/\n\n+/).filter(p => p.trim().length > 0);
+
+    // Count special patterns
+    const conditionals = (req.content.match(/경우|만약|때|면|이면/g) || []).length;
+    const exceptions = (req.content.match(/예외|제외|않|못|불가/g) || []).length;
+    const references = (req.content.match(/참조|관련|연계|연동/g) || []).length;
+
+    // Complexity score (simple heuristic)
+    const complexityScore = Math.min(100, 
+      words.length * 0.1 + 
+      conditionals * 5 + 
+      exceptions * 3 + 
+      sentences.length * 2
+    );
+
+    return {
+      requirementId: id,
+      metrics: {
+        wordCount: words.length,
+        sentenceCount: sentences.length,
+        paragraphCount: paragraphs.length,
+        avgWordsPerSentence: sentences.length > 0 ? (words.length / sentences.length).toFixed(1) : 0
+      },
+      patterns: {
+        conditionals,
+        exceptions,
+        references
+      },
+      complexityScore: Math.round(complexityScore),
+      complexityLevel: complexityScore < 30 ? 'LOW' : complexityScore < 60 ? 'MEDIUM' : 'HIGH'
+    };
+  }
 }

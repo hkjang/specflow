@@ -258,4 +258,62 @@ export class RequirementsController {
   batchEnrichWithProgress(@Body() body: { ids: string[] }) {
     return this.requirementsService.batchEnrichWithProgress(body.ids);
   }
+
+  // --- Relation Management ---
+
+  @Post('relations')
+  addRelation(@Body() body: { sourceId: string; targetId: string; type: string; reason?: string }) {
+    return this.requirementsService.addRelation(body.sourceId, body.targetId, body.type, body.reason);
+  }
+
+  @Get(':id/relations')
+  getRelations(@Param('id') id: string) {
+    return this.requirementsService.getRelations(id);
+  }
+
+  @Delete('relations/:relationId')
+  removeRelation(@Param('relationId') relationId: string) {
+    return this.requirementsService.removeRelation(relationId);
+  }
+
+  // --- Audit & Health ---
+
+  @Get(':id/audit')
+  getAuditLogs(@Param('id') id: string, @Query('limit') limit?: number) {
+    return this.requirementsService.getAuditLogs(id, limit ? +limit : 50);
+  }
+
+  @Get('health/stats')
+  getHealthStats() {
+    return this.requirementsService.getHealthStats();
+  }
+
+  @Get(':id/dependencies')
+  checkDependencies(@Param('id') id: string) {
+    return this.requirementsService.checkDependencies(id);
+  }
+
+  // --- Archive & Restore ---
+
+  @Post('global/archive')
+  bulkArchive(@Body() body: { ids: string[] }) {
+    return this.requirementsService.bulkArchive(body.ids);
+  }
+
+  @Post(':id/restore')
+  restore(@Param('id') id: string) {
+    return this.requirementsService.restore(id);
+  }
+
+  // --- AI Translation & Complexity ---
+
+  @Post(':id/translate')
+  translateRequirement(@Param('id') id: string, @Body() body: { lang: string }) {
+    return this.requirementsService.translateRequirement(id, body.lang);
+  }
+
+  @Get(':id/complexity')
+  getComplexityMetrics(@Param('id') id: string) {
+    return this.requirementsService.getComplexityMetrics(id);
+  }
 }
