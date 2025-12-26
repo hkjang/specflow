@@ -2158,4 +2158,757 @@ JSON만 반환하세요.`;
       status: passedCount === rules.length ? 'COMPLIANT' : passedCount >= 5 ? 'PARTIAL' : 'NON_COMPLIANT'
     };
   }
+
+  // --- Collaboration & Bookmarks ---
+
+  /**
+   * Add bookmark for a user
+   */
+  async addBookmark(userId: string, requirementId: string) {
+    const existing = await this.prisma.bookmark.findFirst({
+      where: { userId, requirementId }
+    });
+
+    if (existing) {
+      return { message: '이미 북마크되어 있습니다.', bookmarkId: existing.id };
+    }
+
+    const bookmark = await this.prisma.bookmark.create({
+      data: { userId, requirementId }
+    });
+
+    return {
+      bookmarkId: bookmark.id,
+      message: '북마크가 추가되었습니다.'
+    };
+  }
+
+  /**
+   * Get user's bookmarks
+   */
+  async getBookmarks(userId: string, limit = 50) {
+    const bookmarks = await this.prisma.bookmark.findMany({
+      where: { userId },
+      include: { requirement: { select: { id: true, code: true, title: true, status: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    return {
+      count: bookmarks.length,
+      bookmarks: bookmarks.map(b => ({
+        bookmarkId: b.id,
+        ...b.requirement,
+        bookmarkedAt: b.createdAt
+      }))
+    };
+  }
+
+  /**
+   * Remove bookmark
+   */
+  async removeBookmark(bookmarkId: string) {
+    await this.prisma.bookmark.delete({ where: { id: bookmarkId } });
+    return { message: '북마크가 삭제되었습니다.', bookmarkId };
+  }
+
+  /**
+   * Add watcher to requirement
+   */
+  async addWatcher(requirementId: string, userId: string) {
+    const existing = await this.prisma.requirementWatcher.findFirst({
+      where: { requirementId, userId }
+    });
+
+    if (existing) {
+      return { message: '이미 구독 중입니다.', watcherId: existing.id };
+    }
+
+    const watcher = await this.prisma.requirementWatcher.create({
+      data: { requirementId, userId }
+    });
+
+    return { watcherId: watcher.id, message: '변경 알림 구독이 시작되었습니다.' };
+  }
+
+  /**
+   * Get watchers for a requirement
+   */
+  async getWatchers(requirementId: string) {
+    const watchers = await this.prisma.requirementWatcher.findMany({
+      where: { requirementId },
+      include: { user: { select: { id: true, email: true, name: true } } }
+    });
+
+    return {
+      count: watchers.length,
+      watchers: watchers.map(w => ({
+        watcherId: w.id,
+        user: w.user,
+        since: w.createdAt
+      }))
+    };
+  }
+
+  // --- AI Advanced ---
+
+  /**
+   * AI-powered comparison of two requirements
+   */
+  async aiCompare(id1: string, id2: string) {
+    const [req1, req2] = await Promise.all([
+      this.prisma.requirement.findUnique({ where: { id: id1 }, select: { code: true, title: true, content: true } }),
+      this.prisma.requirement.findUnique({ where: { id: id2 }, select: { code: true, title: true, content: true } })
+    ]);
+
+    if (!req1 || !req2) throw new Error('Requirements not found');
+
+    const prompt = `두 요건을 분석하고 비교하세요.
+
+요건1 (${req1.code}):
+제목: ${req1.title}
+내용: ${req1.content}
+
+요건2 (${req2.code}):
+제목: ${req2.title}
+내용: ${req2.content}
+
+JSON 형식으로 반환:
+{
+  "similarity": 0-100,
+  "relationship": "DUPLICATE|SIMILAR|RELATED|INDEPENDENT|CONFLICTING",
+  "commonPoints": ["공통점1", "공통점2"],
+  "differences": ["차이점1", "차이점2"],
+  "recommendation": "권장사항"
+}
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 800,
+        temperature: 0.2
+      }, 'AI_COMPARE');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return {
+          requirement1: { code: req1.code, title: req1.title },
+          requirement2: { code: req2.code, title: req2.title },
+          ...JSON.parse(jsonMatch[0])
+        };
+      }
+      return { error: 'AI 분석 실패' };
+    } catch (error) {
+      this.logger.error('AI compare failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Keyword-based semantic search
+   */
+  async semanticSearch(query: string, limit = 20) {
+    // Split query into keywords
+    const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length >= 2);
+    
+    if (keywords.length === 0) return { results: [], count: 0 };
+
+    // Build OR conditions for each keyword
+    const orConditions = keywords.flatMap(k => [
+      { title: { contains: k, mode: 'insensitive' as const } },
+      { content: { contains: k, mode: 'insensitive' as const } }
+    ]);
+
+    const requirements = await this.prisma.requirement.findMany({
+      where: { OR: orConditions, status: { not: 'DEPRECATED' } },
+      select: { id: true, code: true, title: true, content: true, status: true },
+      take: limit * 2
+    });
+
+    // Score results by keyword matches
+    const scored = requirements.map(r => {
+      const text = `${r.title} ${r.content}`.toLowerCase();
+      const matchCount = keywords.filter(k => text.includes(k)).length;
+      const score = (matchCount / keywords.length) * 100;
+      return { ...r, score: Math.round(score), matchedKeywords: matchCount };
+    });
+
+    // Sort by score and limit
+    const sorted = scored.sort((a, b) => b.score - a.score).slice(0, limit);
+
+    return {
+      query,
+      keywords,
+      count: sorted.length,
+      results: sorted.map(r => ({
+        id: r.id,
+        code: r.code,
+        title: r.title,
+        status: r.status,
+        relevanceScore: r.score,
+        matchedKeywords: r.matchedKeywords,
+        snippet: r.content.substring(0, 150)
+      }))
+    };
+  }
+
+  /**
+   * Bulk approve with conditions
+   */
+  async bulkApprove(ids: string[], approverId: string, minQualityScore = 70) {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { id: { in: ids }, status: 'REVIEW' },
+      include: { qualityMetric: true }
+    });
+
+    const results: { id: string; code: string; approved: boolean; reason?: string }[] = [];
+
+    for (const r of requirements) {
+      const qualityScore = r.qualityMetric?.overallScore || 0;
+      
+      if (qualityScore >= minQualityScore) {
+        await this.prisma.requirement.update({
+          where: { id: r.id },
+          data: { status: 'APPROVED' }
+        });
+        results.push({ id: r.id, code: r.code, approved: true });
+      } else {
+        results.push({ 
+          id: r.id, 
+          code: r.code, 
+          approved: false, 
+          reason: `품질 점수 ${qualityScore}점 < 최소 ${minQualityScore}점` 
+        });
+      }
+    }
+
+    return {
+      processed: results.length,
+      approved: results.filter(r => r.approved).length,
+      rejected: results.filter(r => !r.approved).length,
+      results
+    };
+  }
+
+  /**
+   * Get history diff between two versions
+   */
+  async getHistoryDiff(id: string, version1: number, version2: number) {
+    const histories = await this.prisma.requirementHistory.findMany({
+      where: { 
+        requirementId: id,
+        version: { in: [version1, version2] }
+      },
+      orderBy: { version: 'asc' }
+    });
+
+    if (histories.length < 2) {
+      return { error: '두 버전을 찾을 수 없습니다.' };
+    }
+
+    const [h1, h2] = histories;
+
+    return {
+      requirementId: id,
+      comparison: {
+        version1: { version: h1.version, field: h1.field, value: h1.newValue },
+        version2: { version: h2.version, field: h2.field, value: h2.newValue }
+      },
+      changedFields: [...new Set([h1.field, h2.field])]
+    };
+  }
+
+  /**
+   * Trend analysis over time
+   */
+  async getTrendAnalysis(days = 30) {
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [created, approved, deprecated] = await Promise.all([
+      this.prisma.requirement.groupBy({
+        by: ['status'],
+        where: { createdAt: { gte: startDate } },
+        _count: { id: true }
+      }),
+      this.prisma.requirement.count({
+        where: { status: 'APPROVED', updatedAt: { gte: startDate } }
+      }),
+      this.prisma.requirement.count({
+        where: { status: 'DEPRECATED', updatedAt: { gte: startDate } }
+      })
+    ]);
+
+    const dailyCreation: Record<string, number> = {};
+    const reqs = await this.prisma.requirement.findMany({
+      where: { createdAt: { gte: startDate } },
+      select: { createdAt: true }
+    });
+
+    for (const r of reqs) {
+      const day = r.createdAt.toISOString().split('T')[0];
+      dailyCreation[day] = (dailyCreation[day] || 0) + 1;
+    }
+
+    return {
+      period: `Last ${days} days`,
+      summary: {
+        totalCreated: reqs.length,
+        approved,
+        deprecated,
+        byStatus: created.reduce((acc, s) => {
+          acc[s.status] = s._count.id;
+          return acc;
+        }, {} as Record<string, number>)
+      },
+      dailyTrend: Object.entries(dailyCreation).map(([date, count]) => ({ date, count })),
+      avgPerDay: (reqs.length / days).toFixed(1)
+    };
+  }
+
+  /**
+   * Get reusable blocks/patterns from existing requirements
+   */
+  async getReusableBlocks() {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { status: 'APPROVED' },
+      select: { content: true },
+      take: 100
+    });
+
+    // Extract common patterns
+    const patterns: Record<string, number> = {};
+    const blocks: string[] = [];
+
+    for (const r of requirements) {
+      // Extract sections in brackets
+      const matches = r.content.match(/\[([^\]]+)\]/g) || [];
+      for (const m of matches) {
+        patterns[m] = (patterns[m] || 0) + 1;
+      }
+
+      // Extract bullet points
+      const bullets = r.content.match(/^[-•]\s*.+$/gm) || [];
+      for (const b of bullets) {
+        if (b.length > 10 && b.length < 100) {
+          blocks.push(b.trim());
+        }
+      }
+    }
+
+    // Get top patterns
+    const topPatterns = Object.entries(patterns)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([pattern, count]) => ({ pattern, count }));
+
+    // Get unique blocks
+    const uniqueBlocks = [...new Set(blocks)].slice(0, 20);
+
+    return {
+      analyzedCount: requirements.length,
+      commonPatterns: topPatterns,
+      reusableBlocks: uniqueBlocks
+    };
+  }
+
+  /**
+   * Trigger webhook for external integration
+   */
+  async triggerWebhook(event: string, payload: any, webhookUrl?: string) {
+    const url = webhookUrl || process.env.REQUIREMENTS_WEBHOOK_URL;
+    
+    if (!url) {
+      return { triggered: false, reason: 'Webhook URL not configured' };
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event,
+          timestamp: new Date().toISOString(),
+          payload
+        })
+      });
+
+      return {
+        triggered: true,
+        event,
+        status: response.status,
+        success: response.ok
+      };
+    } catch (error: any) {
+      return {
+        triggered: false,
+        event,
+        error: error.message
+      };
+    }
+  }
+
+  // --- Phase 8: Final Advanced Features ---
+
+  /**
+   * AI auto-suggest next actions for a requirement
+   */
+  async aiAutoSuggest(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      include: { qualityMetric: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const suggestions: { action: string; priority: 'HIGH' | 'MEDIUM' | 'LOW'; reason: string }[] = [];
+
+    // Quality-based suggestions
+    if (!req.qualityMetric) {
+      suggestions.push({ action: 'ANALYZE_QUALITY', priority: 'HIGH', reason: '품질 분석이 필요합니다.' });
+    } else if (req.qualityMetric.overallScore < 60) {
+      suggestions.push({ action: 'IMPROVE_QUALITY', priority: 'HIGH', reason: `품질 점수가 ${req.qualityMetric.overallScore}점으로 낮습니다.` });
+    }
+
+    // Status-based suggestions
+    if (req.status === 'DRAFT' && this.daysSince(req.createdAt) > 7) {
+      suggestions.push({ action: 'REVIEW', priority: 'MEDIUM', reason: '초안 상태로 7일 이상 방치되었습니다.' });
+    }
+    if (req.status === 'REVIEW' && this.daysSince(req.updatedAt) > 3) {
+      suggestions.push({ action: 'APPROVE_OR_REJECT', priority: 'HIGH', reason: '검토 대기 3일 이상입니다.' });
+    }
+
+    // Content-based suggestions
+    if (req.content.length < 100) {
+      suggestions.push({ action: 'ADD_DETAILS', priority: 'MEDIUM', reason: '내용이 너무 짧습니다.' });
+    }
+    if (!req.businessId) {
+      suggestions.push({ action: 'ASSIGN_BUSINESS', priority: 'LOW', reason: '비즈니스 영역이 지정되지 않았습니다.' });
+    }
+
+    return {
+      requirementId: id,
+      code: req.code,
+      currentStatus: req.status,
+      suggestions: suggestions.sort((a, b) => 
+        a.priority === 'HIGH' ? -1 : b.priority === 'HIGH' ? 1 : 0
+      )
+    };
+  }
+
+  /**
+   * Batch quality analysis for multiple requirements
+   */
+  async batchQualityAnalysis(ids: string[]) {
+    const results: { id: string; code: string; score: number | null; needsImprovement: boolean }[] = [];
+
+    for (const id of ids) {
+      const req = await this.prisma.requirement.findUnique({
+        where: { id },
+        select: { id: true, code: true },
+        include: { qualityMetric: true } as any
+      });
+
+      if (!req) continue;
+
+      const qm = (req as any).qualityMetric;
+      results.push({
+        id: req.id,
+        code: req.code,
+        score: qm?.overallScore || null,
+        needsImprovement: !qm || qm.overallScore < 70
+      });
+    }
+
+    const analyzed = results.filter(r => r.score !== null);
+    const avgScore = analyzed.length > 0 
+      ? Math.round(analyzed.reduce((sum, r) => sum + (r.score || 0), 0) / analyzed.length) 
+      : 0;
+
+    return {
+      total: results.length,
+      analyzed: analyzed.length,
+      notAnalyzed: results.length - analyzed.length,
+      needsImprovement: results.filter(r => r.needsImprovement).length,
+      avgScore,
+      results
+    };
+  }
+
+  /**
+   * Impact analysis: what depends on this requirement
+   */
+  async analyzeImpact(id: string) {
+    const [requirement, outgoing, incoming, children] = await Promise.all([
+      this.prisma.requirement.findUnique({ 
+        where: { id }, 
+        select: { code: true, title: true, status: true } 
+      }),
+      this.prisma.requirementRelation.findMany({
+        where: { sourceId: id },
+        include: { target: { select: { id: true, code: true, title: true, status: true } } }
+      }),
+      this.prisma.requirementRelation.findMany({
+        where: { targetId: id },
+        include: { source: { select: { id: true, code: true, title: true, status: true } } }
+      }),
+      this.prisma.requirement.findMany({
+        where: { parentId: id },
+        select: { id: true, code: true, title: true, status: true }
+      })
+    ]);
+
+    if (!requirement) throw new Error('Requirement not found');
+
+    const impactedCount = outgoing.length + incoming.length + children.length;
+
+    return {
+      requirementId: id,
+      code: requirement.code,
+      title: requirement.title,
+      impactLevel: impactedCount > 5 ? 'HIGH' : impactedCount > 2 ? 'MEDIUM' : 'LOW',
+      summary: {
+        dependsOn: incoming.length,
+        impacts: outgoing.length,
+        children: children.length,
+        totalImpacted: impactedCount
+      },
+      details: {
+        dependsOn: incoming.map(r => ({ ...r.source, relationType: r.type })),
+        impacts: outgoing.map(r => ({ ...r.target, relationType: r.type })),
+        children
+      }
+    };
+  }
+
+  /**
+   * Find orphan requirements (no relations, no parent, no category)
+   */
+  async findOrphans() {
+    const requirements = await this.prisma.requirement.findMany({
+      where: { 
+        status: { not: 'DEPRECATED' },
+        parentId: null,
+        businessId: null
+      },
+      select: { id: true, code: true, title: true, status: true, createdAt: true }
+    });
+
+    // Filter those with no relations
+    const orphans = [];
+    for (const r of requirements) {
+      const relationCount = await this.prisma.requirementRelation.count({
+        where: { OR: [{ sourceId: r.id }, { targetId: r.id }] }
+      });
+      if (relationCount === 0) {
+        orphans.push({
+          ...r,
+          ageInDays: this.daysSince(r.createdAt)
+        });
+      }
+    }
+
+    return {
+      count: orphans.length,
+      orphans: orphans.sort((a, b) => b.ageInDays - a.ageInDays)
+    };
+  }
+
+  /**
+   * Export traceability matrix
+   */
+  async exportTraceabilityMatrix() {
+    const [requirements, relations, businesses, functions] = await Promise.all([
+      this.prisma.requirement.findMany({
+        where: { status: { not: 'DEPRECATED' } },
+        select: { id: true, code: true, title: true, businessId: true, functionId: true }
+      }),
+      this.prisma.requirementRelation.findMany({
+        select: { sourceId: true, targetId: true, type: true }
+      }),
+      this.prisma.business.findMany({ select: { id: true, name: true } }),
+      this.prisma.function.findMany({ select: { id: true, name: true } })
+    ]);
+
+    const matrix: any[] = [];
+
+    for (const req of requirements) {
+      const business = businesses.find(b => b.id === req.businessId);
+      const func = functions.find(f => f.id === req.functionId);
+      const related = relations
+        .filter(r => r.sourceId === req.id || r.targetId === req.id)
+        .map(r => r.sourceId === req.id ? r.targetId : r.sourceId);
+
+      matrix.push({
+        code: req.code,
+        title: req.title,
+        business: business?.name || '-',
+        function: func?.name || '-',
+        relatedCount: related.length,
+        relatedCodes: requirements
+          .filter(r => related.includes(r.id))
+          .map(r => r.code)
+          .join('; ')
+      });
+    }
+
+    const headers = 'Code,Title,Business,Function,RelatedCount,RelatedCodes';
+    const rows = matrix.map(m => 
+      `${m.code},"${m.title.replace(/"/g, '""')}",${m.business},${m.function},${m.relatedCount},"${m.relatedCodes}"`
+    );
+
+    return {
+      format: 'CSV',
+      rowCount: matrix.length,
+      data: [headers, ...rows].join('\n')
+    };
+  }
+
+  /**
+   * Check overall completeness
+   */
+  async checkCompleteness() {
+    const [total, withBusiness, withFunction, withQuality, approved, draft] = await Promise.all([
+      this.prisma.requirement.count({ where: { status: { not: 'DEPRECATED' } } }),
+      this.prisma.requirement.count({ where: { status: { not: 'DEPRECATED' }, businessId: { not: null } } }),
+      this.prisma.requirement.count({ where: { status: { not: 'DEPRECATED' }, functionId: { not: null } } }),
+      this.prisma.qualityMetric.count(),
+      this.prisma.requirement.count({ where: { status: 'APPROVED' } }),
+      this.prisma.requirement.count({ where: { status: 'DRAFT' } })
+    ]);
+
+    const completeness = {
+      businessAssignment: total > 0 ? Math.round((withBusiness / total) * 100) : 0,
+      functionAssignment: total > 0 ? Math.round((withFunction / total) * 100) : 0,
+      qualityAnalyzed: total > 0 ? Math.round((withQuality / total) * 100) : 0,
+      approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0
+    };
+
+    const overallScore = Math.round(
+      (completeness.businessAssignment + completeness.functionAssignment + 
+       completeness.qualityAnalyzed + completeness.approvalRate) / 4
+    );
+
+    return {
+      total,
+      byStatus: { approved, draft, other: total - approved - draft },
+      completeness,
+      overallScore,
+      status: overallScore >= 80 ? 'GOOD' : overallScore >= 50 ? 'NEEDS_WORK' : 'POOR'
+    };
+  }
+
+  /**
+   * Auto-link related requirements based on content similarity
+   */
+  async autoLink(id: string, threshold = 0.6) {
+    const source = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, code: true, title: true, content: true }
+    });
+
+    if (!source) throw new Error('Requirement not found');
+
+    const others = await this.prisma.requirement.findMany({
+      where: { id: { not: id }, status: { not: 'DEPRECATED' } },
+      select: { id: true, code: true, title: true, content: true }
+    });
+
+    const sourceText = this.normalizeText(`${source.title} ${source.content}`);
+    const suggestions: { id: string; code: string; title: string; similarity: number }[] = [];
+
+    for (const other of others) {
+      const otherText = this.normalizeText(`${other.title} ${other.content}`);
+      const similarity = this.calculateSimilarity(sourceText, otherText);
+      
+      if (similarity >= threshold) {
+        suggestions.push({
+          id: other.id,
+          code: other.code,
+          title: other.title,
+          similarity: Math.round(similarity * 100)
+        });
+      }
+    }
+
+    return {
+      sourceId: id,
+      sourceCode: source.code,
+      threshold: Math.round(threshold * 100),
+      suggestedLinks: suggestions.sort((a, b) => b.similarity - a.similarity).slice(0, 10)
+    };
+  }
+
+  /**
+   * Bulk translate to multiple languages
+   */
+  async bulkTranslate(ids: string[], targetLang: string) {
+    const results: { id: string; code: string; success: boolean; error?: string }[] = [];
+
+    for (const id of ids) {
+      try {
+        await this.translateRequirement(id, targetLang);
+        const req = await this.prisma.requirement.findUnique({ where: { id }, select: { code: true } });
+        results.push({ id, code: req?.code || 'N/A', success: true });
+      } catch (error: any) {
+        results.push({ id, code: 'N/A', success: false, error: error.message });
+      }
+    }
+
+    return {
+      targetLang,
+      total: ids.length,
+      success: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
+    };
+  }
+
+  /**
+   * Generate summary dashboard data
+   */
+  async getDashboardSummary() {
+    const [
+      total, byStatus, recentCreated, avgQuality, 
+      pendingApproval, highRisk, orphanCount
+    ] = await Promise.all([
+      this.prisma.requirement.count({ where: { status: { not: 'DEPRECATED' } } }),
+      this.prisma.requirement.groupBy({ by: ['status'], _count: { id: true } }),
+      this.prisma.requirement.count({
+        where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
+      }),
+      this.prisma.qualityMetric.aggregate({ _avg: { overallScore: true } }),
+      this.prisma.requirement.count({ where: { status: 'REVIEW' } }),
+      this.prisma.qualityMetric.count({ where: { overallScore: { lt: 50 } } }),
+      this.prisma.requirement.count({
+        where: { parentId: null, businessId: null, status: { not: 'DEPRECATED' } }
+      })
+    ]);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      overview: {
+        total,
+        recentCreated,
+        avgQualityScore: Math.round(avgQuality._avg.overallScore || 0)
+      },
+      statusDistribution: byStatus.reduce((acc, s) => {
+        acc[s.status] = s._count.id;
+        return acc;
+      }, {} as Record<string, number>),
+      alerts: {
+        pendingApproval,
+        highRisk,
+        orphans: orphanCount
+      },
+      healthScore: Math.round(
+        (1 - (highRisk / Math.max(total, 1))) * 100 * 0.5 +
+        (1 - (orphanCount / Math.max(total, 1))) * 100 * 0.3 +
+        (avgQuality._avg.overallScore || 50) * 0.2
+      )
+    };
+  }
 }

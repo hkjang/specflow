@@ -360,4 +360,115 @@ export class RequirementsController {
   checkCompliance(@Param('id') id: string) {
     return this.requirementsService.checkCompliance(id);
   }
+
+  // --- Collaboration ---
+
+  @Post('bookmarks')
+  addBookmark(@Body() body: { userId: string; requirementId: string }) {
+    return this.requirementsService.addBookmark(body.userId, body.requirementId);
+  }
+
+  @Get('bookmarks/:userId')
+  getBookmarks(@Param('userId') userId: string) {
+    return this.requirementsService.getBookmarks(userId);
+  }
+
+  @Delete('bookmarks/:bookmarkId')
+  removeBookmark(@Param('bookmarkId') bookmarkId: string) {
+    return this.requirementsService.removeBookmark(bookmarkId);
+  }
+
+  @Post(':id/watchers')
+  addWatcher(@Param('id') id: string, @Body() body: { userId: string }) {
+    return this.requirementsService.addWatcher(id, body.userId);
+  }
+
+  @Get(':id/watchers')
+  getWatchers(@Param('id') id: string) {
+    return this.requirementsService.getWatchers(id);
+  }
+
+  // --- AI Advanced ---
+
+  @Get('ai/compare/:id1/:id2')
+  aiCompare(@Param('id1') id1: string, @Param('id2') id2: string) {
+    return this.requirementsService.aiCompare(id1, id2);
+  }
+
+  @Get('search/semantic')
+  semanticSearch(@Query('q') query: string, @Query('limit') limit?: number) {
+    return this.requirementsService.semanticSearch(query, limit ? +limit : 20);
+  }
+
+  @Post('global/bulk-approve')
+  bulkApprove(@Body() body: { ids: string[]; approverId: string; minQualityScore?: number }) {
+    return this.requirementsService.bulkApprove(body.ids, body.approverId, body.minQualityScore);
+  }
+
+  @Get(':id/history-diff')
+  getHistoryDiff(@Param('id') id: string, @Query('v1') v1: number, @Query('v2') v2: number) {
+    return this.requirementsService.getHistoryDiff(id, +v1, +v2);
+  }
+
+  @Get('analytics/trend')
+  getTrendAnalysis(@Query('days') days?: number) {
+    return this.requirementsService.getTrendAnalysis(days ? +days : 30);
+  }
+
+  @Get('library/blocks')
+  getReusableBlocks() {
+    return this.requirementsService.getReusableBlocks();
+  }
+
+  @Post('webhook/trigger')
+  triggerWebhook(@Body() body: { event: string; payload: any; webhookUrl?: string }) {
+    return this.requirementsService.triggerWebhook(body.event, body.payload, body.webhookUrl);
+  }
+
+  // --- Phase 8: Final Advanced Features ---
+
+  @Get(':id/suggest-actions')
+  aiAutoSuggest(@Param('id') id: string) {
+    return this.requirementsService.aiAutoSuggest(id);
+  }
+
+  @Post('analytics/batch-quality')
+  batchQualityAnalysis(@Body() body: { ids: string[] }) {
+    return this.requirementsService.batchQualityAnalysis(body.ids);
+  }
+
+  @Get(':id/impact')
+  analyzeImpact(@Param('id') id: string) {
+    return this.requirementsService.analyzeImpact(id);
+  }
+
+  @Get('analytics/orphans')
+  findOrphans() {
+    return this.requirementsService.findOrphans();
+  }
+
+  @Get('export/traceability-matrix')
+  exportTraceabilityMatrix() {
+    return this.requirementsService.exportTraceabilityMatrix();
+  }
+
+  @Get('analytics/completeness')
+  checkCompleteness() {
+    return this.requirementsService.checkCompleteness();
+  }
+
+  @Get(':id/auto-link')
+  autoLink(@Param('id') id: string, @Query('threshold') threshold?: number) {
+    return this.requirementsService.autoLink(id, threshold ? +threshold / 100 : 0.6);
+  }
+
+  @Post('global/bulk-translate')
+  bulkTranslate(@Body() body: { ids: string[]; targetLang: string }) {
+    return this.requirementsService.bulkTranslate(body.ids, body.targetLang);
+  }
+
+  @Get('dashboard/summary')
+  getDashboardSummary() {
+    return this.requirementsService.getDashboardSummary();
+  }
 }
