@@ -97,4 +97,9 @@ export class RequirementsController {
   remove(@Param('id') id: string) {
     return this.requirementsService.remove(id);
   }
+
+  @Post('ai/improve')
+  async getAiImprovement(@Body() body: { content: string }) {
+    return this.requirementsService.getAiImprovement(body.content);
+  }
 }

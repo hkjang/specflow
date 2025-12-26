@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Sparkles, ArrowRight, Check, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { explanationApi } from '@/api/explanation';
+import { api } from '@/lib/api';
 
 interface AiAssistantWidgetProps {
     currentContent: string;
@@ -15,20 +15,29 @@ export function AiAssistantWidget({ currentContent, onApply }: AiAssistantWidget
     const [isProcessing, setIsProcessing] = useState(false);
     const [suggestion, setSuggestion] = useState<string | null>(null);
     const [reason, setReason] = useState<string | null>(null);
+    const [changes, setChanges] = useState<string[]>([]);
 
     const handlePolish = async () => {
         setIsProcessing(true);
         setIsOpen(true);
 
-        // Simulate AI Latency
-        setTimeout(() => {
-            // Mock AI Polish Logic (Mocking LinguisticsService behavior)
-            const improved = currentContent.replace(/해야 한다/g, '하여야 한다.').replace(/할 수 있다/g, '가능하다.') + ' (단, 예외 상황은 별도 규정에 따른다.)';
+        try {
+            const response = await api.post('/requirements/ai/improve', {
+                content: currentContent
+            });
 
-            setSuggestion(improved);
-            setReason("표준어휘 '하여야 한다'를 사용하고, 예외 처리에 대한 포괄적 조항을 추가하여 모호성을 제거했습니다.");
+            const data = response.data;
+            setSuggestion(data.improved || currentContent);
+            setReason(data.reason || 'AI가 개선 제안을 생성했습니다.');
+            setChanges(data.changes || []);
+        } catch (error) {
+            console.error('AI improvement failed:', error);
+            setSuggestion(currentContent);
+            setReason('AI 호출에 실패했습니다. 다시 시도해주세요.');
+            setChanges([]);
+        } finally {
             setIsProcessing(false);
-        }, 1500);
+        }
     };
 
     if (!isOpen && !isProcessing) {

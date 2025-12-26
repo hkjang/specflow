@@ -295,4 +295,54 @@ export class RequirementsService {
       where: { id }
     });
   }
+
+  /**
+   * Get AI-powered improvement suggestions for requirement content
+   */
+  async getAiImprovement(content: string) {
+    const prompt = `당신은 요건 정의 문서 전문가입니다. 다음 요건을 분석하고 개선된 버전을 제안해주세요.
+
+원문:
+${content}
+
+다음 형식으로 JSON을 반환해주세요:
+{
+  "improved": "개선된 요건 내용 (표준어휘 사용, 모호성 제거, 예외 처리 명시)",
+  "reason": "개선 이유 설명 (1-2문장)",
+  "changes": ["변경사항1", "변경사항2"]
+}
+
+개선 시 고려사항:
+1. '해야 한다' → '하여야 한다' 등 표준 표현 사용
+2. 모호한 표현 구체화
+3. 예외 상황 처리 조항 추가
+4. 측정 가능한 기준 명시
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1000,
+        temperature: 0.3
+      }, 'REQUIREMENT_IMPROVEMENT');
+
+      // Parse JSON response
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+
+      // Fallback if no JSON found
+      return {
+        improved: text,
+        reason: 'AI가 개선 제안을 생성했습니다.',
+        changes: []
+      };
+    } catch (error) {
+      this.logger.error('AI improvement failed', error);
+      throw error;
+    }
+  }
 }
