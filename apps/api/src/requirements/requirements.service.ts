@@ -827,4 +827,311 @@ JSON만 반환하세요.`;
     if (union.size === 0) return 0;
     return intersection.size / union.size;
   }
+
+  // --- Advanced Features ---
+
+  /**
+   * AI-powered comprehensive quality analysis
+   */
+  async analyzeQuality(id: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, title: true, content: true, code: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    const prompt = `당신은 요건 품질 분석 전문가입니다. 다음 요건을 분석해주세요.
+
+제목: ${req.title}
+내용: ${req.content}
+
+다음 JSON 형식으로 분석 결과를 반환하세요:
+{
+  "scores": {
+    "clarity": 0-100,        // 명확성: 애매모호한 표현 없음
+    "completeness": 0-100,   // 완전성: 필요한 정보 모두 포함
+    "testability": 0-100,    // 테스트가능성: 검증 가능한 기준 제시
+    "consistency": 0-100,    // 일관성: 용어와 표현의 일관성
+    "atomicity": 0-100       // 원자성: 단일 요건으로 분리 가능
+  },
+  "overallScore": 0-100,
+  "issues": ["이슈1", "이슈2"],
+  "suggestions": ["개선제안1", "개선제안2"],
+  "keywords": ["주요키워드1", "주요키워드2"]
+}
+
+JSON만 반환하세요.`;
+
+    try {
+      const response = await this.aiManager.execute({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 1000,
+        temperature: 0.2
+      }, 'QUALITY_ANALYSIS');
+
+      const text = response.content || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        const analysis = JSON.parse(jsonMatch[0]);
+        
+        // Update quality metric in DB
+        await this.prisma.qualityMetric.upsert({
+          where: { requirementId: id },
+          create: {
+            requirementId: id,
+            ambiguityScore: 100 - (analysis.scores?.clarity || 0),
+            completeness: analysis.scores?.completeness || 0,
+            overallScore: analysis.overallScore || 0,
+          },
+          update: {
+            ambiguityScore: 100 - (analysis.scores?.clarity || 0),
+            completeness: analysis.scores?.completeness || 0,
+            overallScore: analysis.overallScore || 0,
+          }
+        });
+
+        return { requirementId: id, code: req.code, ...analysis };
+      }
+
+      return { requirementId: id, error: 'Failed to parse AI response' };
+    } catch (error) {
+      this.logger.error('Quality analysis failed', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Compare two requirements side-by-side with diff
+   */
+  async compareRequirements(id1: string, id2: string) {
+    const [req1, req2] = await Promise.all([
+      this.prisma.requirement.findUnique({
+        where: { id: id1 },
+        select: { id: true, code: true, title: true, content: true, status: true, trustGrade: true, version: true }
+      }),
+      this.prisma.requirement.findUnique({
+        where: { id: id2 },
+        select: { id: true, code: true, title: true, content: true, status: true, trustGrade: true, version: true }
+      })
+    ]);
+
+    if (!req1 || !req2) throw new Error('One or both requirements not found');
+
+    // Calculate similarity
+    const titleSimilarity = this.calculateSimilarity(
+      this.normalizeText(req1.title),
+      this.normalizeText(req2.title)
+    );
+    const contentSimilarity = this.calculateSimilarity(
+      this.normalizeText(req1.content),
+      this.normalizeText(req2.content)
+    );
+
+    // Simple word-level diff
+    const words1 = req1.content.split(/\s+/);
+    const words2 = req2.content.split(/\s+/);
+    const wordsSet1 = new Set(words1);
+    const wordsSet2 = new Set(words2);
+    
+    const onlyIn1 = words1.filter(w => !wordsSet2.has(w));
+    const onlyIn2 = words2.filter(w => !wordsSet1.has(w));
+    const common = words1.filter(w => wordsSet2.has(w));
+
+    return {
+      requirement1: req1,
+      requirement2: req2,
+      similarity: {
+        title: Math.round(titleSimilarity * 100),
+        content: Math.round(contentSimilarity * 100),
+        overall: Math.round((titleSimilarity * 0.4 + contentSimilarity * 0.6) * 100)
+      },
+      diff: {
+        uniqueTo1Count: onlyIn1.length,
+        uniqueTo2Count: onlyIn2.length,
+        commonCount: common.length,
+        uniqueTo1: onlyIn1.slice(0, 20), // Limit for readability
+        uniqueTo2: onlyIn2.slice(0, 20)
+      }
+    };
+  }
+
+  /**
+   * Merge two requirements into one
+   */
+  async mergeRequirements(sourceId: string, targetId: string, options: { 
+    strategy: 'KEEP_TARGET' | 'KEEP_SOURCE' | 'COMBINE';
+    deprecateSource?: boolean;
+  } = { strategy: 'COMBINE', deprecateSource: true }) {
+    const [source, target] = await Promise.all([
+      this.prisma.requirement.findUnique({ where: { id: sourceId } }),
+      this.prisma.requirement.findUnique({ where: { id: targetId } })
+    ]);
+
+    if (!source || !target) throw new Error('One or both requirements not found');
+
+    let mergedContent: string;
+    let mergedTitle: string;
+
+    switch (options.strategy) {
+      case 'KEEP_TARGET':
+        mergedContent = target.content;
+        mergedTitle = target.title;
+        break;
+      case 'KEEP_SOURCE':
+        mergedContent = source.content;
+        mergedTitle = source.title;
+        break;
+      case 'COMBINE':
+      default:
+        mergedTitle = target.title;
+        mergedContent = `${target.content}\n\n--- 병합됨 (${source.code}) ---\n\n${source.content}`;
+    }
+
+    // Update target with merged content
+    const updated = await this.prisma.requirement.update({
+      where: { id: targetId },
+      data: {
+        content: mergedContent,
+        title: mergedTitle,
+        version: target.version + 1,
+      }
+    });
+
+    // Optionally deprecate source
+    if (options.deprecateSource) {
+      await this.prisma.requirement.update({
+        where: { id: sourceId },
+        data: { status: 'DEPRECATED' }
+      });
+    }
+
+    // Create relation
+    await this.prisma.requirementRelation.create({
+      data: {
+        sourceId: sourceId,
+        targetId: targetId,
+        type: 'DERIVED_FROM',
+        reason: `Merged from ${source.code}`
+      }
+    });
+
+    return {
+      mergedId: targetId,
+      sourceId: sourceId,
+      strategy: options.strategy,
+      message: `${source.code}가 ${target.code}에 병합되었습니다.`
+    };
+  }
+
+  /**
+   * Request approval for a requirement
+   */
+  async requestApproval(id: string, requesterId: string, reviewerId?: string) {
+    const req = await this.prisma.requirement.findUnique({
+      where: { id },
+      select: { id: true, code: true, status: true }
+    });
+
+    if (!req) throw new Error('Requirement not found');
+
+    // Create approval request
+    const approval = await this.prisma.approvalRequest.create({
+      data: {
+        requirementId: id,
+        requesterId,
+        reviewerId,
+        status: 'PENDING'
+      }
+    });
+
+    // Update requirement status to REVIEW
+    await this.prisma.requirement.update({
+      where: { id },
+      data: { status: 'REVIEW' }
+    });
+
+    return {
+      approvalId: approval.id,
+      requirementCode: req.code,
+      status: 'PENDING',
+      message: '승인 요청이 생성되었습니다.'
+    };
+  }
+
+  /**
+   * Process approval decision
+   */
+  async processApproval(approvalId: string, decision: 'APPROVED' | 'REJECTED', comment?: string) {
+    const approval = await this.prisma.approvalRequest.findUnique({
+      where: { id: approvalId },
+      include: { requirement: true }
+    });
+
+    if (!approval) throw new Error('Approval request not found');
+
+    // Update approval
+    await this.prisma.approvalRequest.update({
+      where: { id: approvalId },
+      data: { 
+        status: decision,
+        comments: comment
+      }
+    });
+
+    // Update requirement status
+    const newStatus = decision === 'APPROVED' ? 'APPROVED' : 'DRAFT';
+    await this.prisma.requirement.update({
+      where: { id: approval.requirementId },
+      data: { status: newStatus }
+    });
+
+    return {
+      approvalId,
+      decision,
+      requirementCode: approval.requirement.code,
+      newStatus,
+      message: decision === 'APPROVED' ? '요건이 승인되었습니다.' : '요건이 반려되었습니다.'
+    };
+  }
+
+  /**
+   * Batch validate requirements
+   */
+  async batchValidate(ids: string[]) {
+    const results: { id: string; code: string; valid: boolean; issues: string[] }[] = [];
+
+    for (const id of ids) {
+      const req = await this.prisma.requirement.findUnique({
+        where: { id },
+        select: { id: true, code: true, title: true, content: true }
+      });
+
+      if (!req) continue;
+
+      const issues: string[] = [];
+
+      // Validation rules
+      if (req.title.length < 5) issues.push('제목이 너무 짧습니다 (최소 5자)');
+      if (req.content.length < 20) issues.push('내용이 너무 짧습니다 (최소 20자)');
+      if (!/[하여야|해야|한다|않는다]/.test(req.content)) issues.push('요건 표현이 명확하지 않습니다');
+      if (req.content.includes('등') || req.content.includes('기타')) issues.push('모호한 표현 포함 (등, 기타)');
+
+      results.push({
+        id: req.id,
+        code: req.code,
+        valid: issues.length === 0,
+        issues
+      });
+    }
+
+    const validCount = results.filter(r => r.valid).length;
+    return {
+      total: results.length,
+      valid: validCount,
+      invalid: results.length - validCount,
+      results
+    };
+  }
 }

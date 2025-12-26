@@ -168,4 +168,48 @@ export class RequirementsController {
   async getAiImprovement(@Body() body: { content: string }) {
     return this.requirementsService.getAiImprovement(body.content);
   }
+
+  // --- Advanced Analysis & Workflow ---
+
+  @Get(':id/quality')
+  analyzeQuality(@Param('id') id: string) {
+    return this.requirementsService.analyzeQuality(id);
+  }
+
+  @Get('compare/:id1/:id2')
+  compareRequirements(@Param('id1') id1: string, @Param('id2') id2: string) {
+    return this.requirementsService.compareRequirements(id1, id2);
+  }
+
+  @Post('merge')
+  mergeRequirements(@Body() body: { 
+    sourceId: string; 
+    targetId: string; 
+    strategy?: 'KEEP_TARGET' | 'KEEP_SOURCE' | 'COMBINE';
+    deprecateSource?: boolean;
+  }) {
+    return this.requirementsService.mergeRequirements(
+      body.sourceId, 
+      body.targetId, 
+      { strategy: body.strategy || 'COMBINE', deprecateSource: body.deprecateSource ?? true }
+    );
+  }
+
+  @Post(':id/request-approval')
+  requestApproval(@Param('id') id: string, @Body() body: { requesterId: string; reviewerId?: string }) {
+    return this.requirementsService.requestApproval(id, body.requesterId, body.reviewerId);
+  }
+
+  @Post('approval/:approvalId/process')
+  processApproval(
+    @Param('approvalId') approvalId: string,
+    @Body() body: { decision: 'APPROVED' | 'REJECTED'; comment?: string }
+  ) {
+    return this.requirementsService.processApproval(approvalId, body.decision, body.comment);
+  }
+
+  @Post('global/validate')
+  batchValidate(@Body() body: { ids: string[] }) {
+    return this.requirementsService.batchValidate(body.ids);
+  }
 }
