@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { api, knowledgeApi } from '@/lib/api';
+import React, { useEffect, useState, useRef } from 'react';
+import { api, knowledgeApi, adminApi } from '@/lib/api';
 // Wrapper for params to handle async nature of Next.js 15+ or just standard hook
 import { useParams } from 'next/navigation';
-import { Save, ArrowLeft, History, FileText, Tag, Sparkles } from 'lucide-react';
+import { Save, ArrowLeft, History, FileText, Tag, Sparkles, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { CommentSection } from '@/components/requirements/CommentSection';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -18,12 +18,44 @@ export default function RequirementDetail() {
     const [req, setReq] = useState<any>(null);
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isEnriching, setIsEnriching] = useState(false);
+    const enrichAttemptedRef = useRef(false);
+
+    // Check if requirement lacks metadata
+    const hasNoMetadata = (requirement: any) => {
+        return !requirement.business &&
+            !requirement.function &&
+            !requirement.menu &&
+            (!requirement.classifications || requirement.classifications.length === 0);
+    };
+
+    // Auto-enrich with AI when metadata is missing
+    const autoEnrich = async () => {
+        if (!id || isEnriching) return;
+        setIsEnriching(true);
+        try {
+            await adminApi.enrichRequirement(id);
+            await fetchReq(); // Refresh to get new metadata
+        } catch (err) {
+            console.error('Auto enrichment failed:', err);
+        } finally {
+            setIsEnriching(false);
+        }
+    };
 
     useEffect(() => {
         if (id) {
             fetchReq();
         }
     }, [id]);
+
+    // Trigger auto-enrich after data is loaded if metadata is missing
+    useEffect(() => {
+        if (req && hasNoMetadata(req) && !enrichAttemptedRef.current && !isEnriching) {
+            enrichAttemptedRef.current = true;
+            autoEnrich();
+        }
+    }, [req]);
 
     const fetchReq = async () => {
         try {
@@ -205,7 +237,15 @@ export default function RequirementDetail() {
 
                     {/* Metadata Card */}
                     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <h3 className="font-bold mb-4 text-slate-800 border-b pb-2">메타데이터</h3>
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="font-bold text-slate-800">메타데이터</h3>
+                            {isEnriching && (
+                                <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    <span>AI 자동 분류 중...</span>
+                                </div>
+                            )}
+                        </div>
                         <div className="space-y-3 text-sm">
                             <div className="flex justify-between items-center group">
                                 <span className="text-slate-500">비즈니스 도메인</span>
@@ -239,27 +279,27 @@ export default function RequirementDetail() {
                                 </div>
                             )}
                         </div>
-                        
+
                         {/* Classifications / Tags */}
                         <div className="mt-4 pt-4 border-t border-slate-100">
-                             <div className="flex items-center gap-2 mb-3">
+                            <div className="flex items-center gap-2 mb-3">
                                 <Tag className="h-4 w-4 text-slate-400" />
                                 <span className="text-sm font-bold text-slate-700">분류 태그 (Tags)</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {req.classifications?.map((c: any) => (
-                                    <div 
-                                        key={c.id} 
+                                    <div
+                                        key={c.id}
                                         className={`
                                             flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border
-                                            ${c.source === 'AI' 
-                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 border-dashed' 
+                                            ${c.source === 'AI'
+                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 border-dashed'
                                                 : 'bg-slate-50 text-slate-600 border-slate-200'}
                                             transition-colors hover:bg-opacity-80
                                         `}
                                         title={
-                                            c.source === 'AI' 
-                                                ? `AI Classified by ${c.model || 'Unknown'} (Confidence: ${(c.confidence * 100).toFixed(0)}%)` 
+                                            c.source === 'AI'
+                                                ? `AI Classified by ${c.model || 'Unknown'} (Confidence: ${(c.confidence * 100).toFixed(0)}%)`
                                                 : 'Human Verified'
                                         }
                                     >

@@ -21,7 +21,7 @@ export const knowledgeApi = {
     promoteRequirement: (id: string) => api.post(`/knowledge/maturity/${id}/promote`),
     verifyRequirement: (id: string) => api.post(`/knowledge/maturity/${id}/verify`),
     getMetrics: (id: string) => api.get(`/knowledge/assets/${id}/metrics`),
-    
+
     // CRUD
     getAssets: () => api.get('/knowledge/assets'),
     createAsset: (data: any) => api.post('/knowledge/assets', data),
@@ -87,6 +87,9 @@ export const adminApi = {
     addComment: (id: string, content: string, userId?: string) => api.post(`/requirements/${id}/comments`, { content, userId }),
     getComments: (id: string) => api.get(`/requirements/${id}/comments`),
     analyzeQuality: (id: string, providerId: string) => api.post(`/requirements/${id}/analyze`, { providerId }),
+
+    // AI Enrichment
+    enrichRequirement: (id: string) => api.post(`/requirements/${id}/enrich`),
 };
 
 export const aiApi = {

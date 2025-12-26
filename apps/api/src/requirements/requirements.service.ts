@@ -175,8 +175,17 @@ export class RequirementsService {
     return this.prisma.requirement.findUnique({
       where: { id },
       include: {
-        history: true,
+        business: true,
+        function: true,
+        menu: true,
+        classifications: {
+          include: { category: true }
+        },
+        history: {
+          include: { changer: { select: { email: true } } }
+        },
         qualityMetric: true,
+        aiMetadata: true,
         comments: {
           orderBy: { createdAt: 'desc' },
           include: { author: { select: { email: true, id: true } } }
