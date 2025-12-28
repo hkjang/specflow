@@ -94,6 +94,9 @@ export const adminApi = {
 
 export const aiApi = {
     getProviders: () => api.get('/ai/providers'),
+    getProviderStatuses: () => api.get('/ai/providers/status'),
+    checkHealth: () => api.post('/ai/providers/health-check'),
+    refreshProviders: () => api.post('/ai/providers/refresh'),
     createProvider: (data: any) => api.post('/ai/providers', data),
     updateProvider: (id: string, data: any) => api.patch(`/ai/providers/${id}`, data),
     deleteProvider: (id: string) => api.delete(`/ai/providers/${id}`),

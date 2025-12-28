@@ -59,7 +59,7 @@ export default function AgentHealthPage() {
       ]);
       setAgents(healthRes.data.agents || []);
       setSummary(summaryRes.data);
-      setHourlyData(hourlyRes.data || []);
+      setHourlyData(Array.isArray(hourlyRes.data) ? hourlyRes.data : []);
       setLastUpdate(new Date());
     } catch (e) { console.error('Failed to fetch health', e); }
     finally { setLoading(false); }

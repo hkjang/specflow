@@ -13,6 +13,7 @@ import { Plus, Trash2, Save, Plug, AlertCircle, CheckCircle, Server, Edit } from
 
 export default function AiSettingsPage() {
     const [providers, setProviders] = useState<any[]>([]);
+    const [statuses, setStatuses] = useState<any[]>([]);
     const [form, setForm] = useState<any>({
         name: '',
         type: 'OPENAI',
@@ -27,17 +28,39 @@ export default function AiSettingsPage() {
     });
     const [loading, setLoading] = useState(true);
     const [testing, setTesting] = useState(false);
+    const [healthChecking, setHealthChecking] = useState(false);
     const [testResult, setTestResult] = useState<any>(null);
 
     const fetchProviders = async () => {
         try {
-            const res = await aiApi.getProviders();
-            setProviders(res.data);
+            const [provRes, statRes] = await Promise.all([
+                aiApi.getProviders(),
+                aiApi.getProviderStatuses()
+            ]);
+            setProviders(provRes.data);
+            setStatuses(statRes.data || []);
         } catch (error) {
             console.error(error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleHealthCheck = async () => {
+        setHealthChecking(true);
+        try {
+            const res = await aiApi.checkHealth();
+            setStatuses(res.data || []);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setHealthChecking(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        await aiApi.refreshProviders();
+        await fetchProviders();
     };
 
     useEffect(() => {
@@ -163,6 +186,44 @@ export default function AiSettingsPage() {
                                         </div>
                                     )}
                                 </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Provider Status Monitoring */}
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="text-sm font-bold text-slate-700">📊 실시간 상태</CardTitle>
+                            <div className="flex gap-1">
+                                <Button variant="outline" size="sm" onClick={handleRefresh} className="h-7 text-xs">
+                                    ↻ 새로고침
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={handleHealthCheck} disabled={healthChecking} className="h-7 text-xs">
+                                    {healthChecking ? '체크중...' : '🩺 헬스체크'}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {statuses.length === 0 ? (
+                                <div className="text-slate-400 text-xs text-center py-3">상태 데이터 없음</div>
+                            ) : (
+                                statuses.map((s: any) => (
+                                    <div key={s.id} className={`p-2 border rounded-lg text-xs ${s.isHealthy ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold">{s.name}</span>
+                                            <span className={s.isHealthy ? 'text-emerald-600' : 'text-rose-600'}>
+                                                {s.isHealthy ? '✓ Healthy' : '✗ Unhealthy'}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-3 text-[10px] text-slate-600">
+                                            <span>✓ {s.successCount}</span>
+                                            <span>✗ {s.failureCount}</span>
+                                            <span>⏱ {s.avgLatencyMs}ms</span>
+                                            {s.lastChecked && <span>🕐 {new Date(s.lastChecked).toLocaleTimeString()}</span>}
+                                        </div>
+                                        {s.lastError && <div className="mt-1 text-[10px] text-rose-600 truncate">❌ {s.lastError}</div>}
+                                    </div>
+                                ))
                             )}
                         </CardContent>
                     </Card>

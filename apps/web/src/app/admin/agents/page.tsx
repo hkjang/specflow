@@ -79,7 +79,7 @@ export default function AgentDashboardPage() {
       setAgents(agentsRes.data.agents || []);
       setMetrics(metricsRes.data);
       setHealth(healthRes.data.agents || []);
-      setHourlyData(hourlyRes.data || []);
+      setHourlyData(Array.isArray(hourlyRes.data) ? hourlyRes.data : []);
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Failed to fetch agent data', error);

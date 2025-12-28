@@ -23,3 +23,15 @@ export interface IAiProvider {
     isHealthy(): Promise<boolean>;
     chatComplete(request: AiRequest): Promise<AiResponse>;
 }
+
+export interface ProviderStatus {
+    id: string;
+    name: string;
+    type: string;
+    isHealthy: boolean;
+    lastChecked: Date | null;
+    lastError: string | null;
+    successCount: number;
+    failureCount: number;
+    avgLatencyMs: number;
+}
