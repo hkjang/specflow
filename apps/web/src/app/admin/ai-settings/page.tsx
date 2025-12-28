@@ -40,6 +40,9 @@ export default function AiSettingsPage() {
     const [showRecommendations, setShowRecommendations] = useState(true);
     const [customTestPrompt, setCustomTestPrompt] = useState('');
     const [showShortcuts, setShowShortcuts] = useState(false);
+    const [darkMode, setDarkMode] = useState(false);
+    const [showComparison, setShowComparison] = useState(false);
+    const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
     const fetchProviders = async () => {
         try {
@@ -302,7 +305,7 @@ export default function AiSettingsPage() {
     if (loading) return <div className="p-8 text-center text-slate-500">AI 설정 불러오는 중...</div>;
 
     return (
-        <div className="space-y-6">
+        <div className={`space-y-6 ${darkMode ? 'dark bg-slate-900 text-white p-4 rounded-lg' : ''}`}>
             <PageHeader
                 title="AI 모델 설정 (AI Settings)"
                 description="LLM Provider(OpenAI, Ollama 등)를 연동하고 모델 우선순위를 관리합니다."
@@ -351,6 +354,23 @@ export default function AiSettingsPage() {
                     <Button variant="outline" size="sm" onClick={() => toggleAllProviders(false)} className="h-7 text-xs text-rose-600 hover:bg-rose-50">
                         ✗ 모두 비활성
                     </Button>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setShowComparison(true)} 
+                        className="h-7 text-xs"
+                        disabled={statuses.length < 2}
+                    >
+                        📊 비교
+                    </Button>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setDarkMode(!darkMode)} 
+                        className="h-7 text-xs"
+                    >
+                        {darkMode ? '☀️' : '🌙'}
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => setShowShortcuts(true)} className="h-7 text-xs text-slate-400">
                         ⌨️ ?
                     </Button>
@@ -372,6 +392,58 @@ export default function AiSettingsPage() {
                             <div className="flex justify-between"><span className="text-slate-500">헬스체크</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">H</kbd></div>
                             <div className="flex justify-between"><span className="text-slate-500">도움말 토글</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">?</kbd></div>
                             <div className="flex justify-between"><span className="text-slate-500">닫기</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">ESC</kbd></div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* Provider Comparison Modal */}
+            {showComparison && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowComparison(false)}>
+                    <Card className="w-[700px] max-h-[80vh] overflow-auto shadow-xl" onClick={e => e.stopPropagation()}>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold">📊 Provider 성능 비교</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="p-2 text-left">Provider</th>
+                                        <th className="p-2 text-center">등급</th>
+                                        <th className="p-2 text-right">성공률</th>
+                                        <th className="p-2 text-right">평균 지연</th>
+                                        <th className="p-2 text-right">토큰</th>
+                                        <th className="p-2 text-right">비용</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {statuses.map((s: any) => {
+                                        const score = getPerformanceScore(s);
+                                        const { grade, color } = getScoreGrade(score);
+                                        const total = s.successCount + s.failureCount;
+                                        const successRate = total > 0 ? Math.round((s.successCount / total) * 100) : 0;
+                                        return (
+                                            <tr key={s.name} className="hover:bg-slate-50">
+                                                <td className="p-2 font-medium">{s.name}</td>
+                                                <td className="p-2 text-center">
+                                                    <span className={`px-2 py-1 rounded font-bold ${color}`}>{grade}</span>
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    <span className={successRate >= 90 ? 'text-emerald-600' : successRate >= 70 ? 'text-amber-600' : 'text-rose-600'}>
+                                                        {successRate}%
+                                                    </span>
+                                                </td>
+                                                <td className="p-2 text-right text-blue-600">{Math.round(s.avgLatencyMs)}ms</td>
+                                                <td className="p-2 text-right text-purple-600">{s.totalTokensUsed?.toLocaleString()}</td>
+                                                <td className="p-2 text-right text-amber-600">${s.estimatedCostUsd?.toFixed(4)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            <div className="mt-4 flex justify-end">
+                                <Button variant="outline" onClick={() => setShowComparison(false)}>닫기</Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
