@@ -36,6 +36,8 @@ export default function AiSettingsPage() {
     const [testing, setTesting] = useState(false);
     const [healthChecking, setHealthChecking] = useState(false);
     const [testResult, setTestResult] = useState<any>(null);
+    const [logs, setLogs] = useState<any[]>([]);
+    const [showRecommendations, setShowRecommendations] = useState(true);
 
     const fetchProviders = async () => {
         try {
@@ -80,6 +82,52 @@ export default function AiSettingsPage() {
         } catch (error) {
             console.error('Failed to load analytics:', error);
         }
+    };
+
+    const fetchLogs = async () => {
+        try {
+            const res = await aiApi.getLogs();
+            setLogs(res.data || []);
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+        }
+    };
+
+    // Generate smart recommendations
+    const getRecommendations = () => {
+        const recs: { type: 'warning' | 'info' | 'success'; message: string }[] = [];
+        
+        // Check for high failure rate
+        const totalSuccess = statuses.reduce((s, st) => s + (st.successCount || 0), 0);
+        const totalFail = statuses.reduce((s, st) => s + (st.failureCount || 0), 0);
+        const total = totalSuccess + totalFail;
+        if (total > 0 && (totalFail / total) > 0.1) {
+            recs.push({ type: 'warning', message: `실패율이 ${Math.round((totalFail / total) * 100)}%로 높습니다. Provider 상태를 확인하세요.` });
+        }
+        
+        // Check for slow providers
+        const slowProviders = statuses.filter(s => s.avgLatencyMs > 5000);
+        if (slowProviders.length > 0) {
+            recs.push({ type: 'warning', message: `${slowProviders.map(s => s.name).join(', ')}의 평균 응답시간이 5초 이상입니다.` });
+        }
+        
+        // Check for no active providers
+        const activeProviders = providers.filter(p => p.isActive);
+        if (activeProviders.length === 0) {
+            recs.push({ type: 'warning', message: '활성화된 Provider가 없습니다. 최소 1개를 활성화하세요.' });
+        }
+        
+        // Check for single point of failure
+        if (activeProviders.length === 1) {
+            recs.push({ type: 'info', message: 'Provider가 1개만 활성화되어 있습니다. 백업 Provider 추가를 권장합니다.' });
+        }
+        
+        // Good status
+        if (total > 0 && (totalFail / total) <= 0.05 && recs.length === 0) {
+            recs.push({ type: 'success', message: '모든 Provider가 정상 작동 중입니다! 👍' });
+        }
+        
+        return recs;
     };
 
     useEffect(() => {
@@ -276,6 +324,35 @@ export default function AiSettingsPage() {
                         </Button>
                     </div>
                 </div>
+            )}
+
+            {/* Smart Recommendations */}
+            {showRecommendations && getRecommendations().length > 0 && (
+                <Card className="border-slate-200 shadow-sm">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm font-bold text-slate-700">💡 스마트 추천</CardTitle>
+                        <Button variant="ghost" size="sm" onClick={() => setShowRecommendations(false)} className="h-6 text-xs text-slate-400">
+                            닫기
+                        </Button>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <div className="space-y-2">
+                            {getRecommendations().map((rec, idx) => (
+                                <div 
+                                    key={idx} 
+                                    className={`p-2 rounded text-sm flex items-center gap-2 ${
+                                        rec.type === 'warning' ? 'bg-amber-50 text-amber-800' :
+                                        rec.type === 'success' ? 'bg-emerald-50 text-emerald-800' :
+                                        'bg-blue-50 text-blue-800'
+                                    }`}
+                                >
+                                    <span>{rec.type === 'warning' ? '⚠️' : rec.type === 'success' ? '✓' : 'ℹ️'}</span>
+                                    {rec.message}
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
             {activeTab === 'settings' && (
@@ -771,32 +848,65 @@ export default function AiSettingsPage() {
             {/* Logs Tab */}
             {activeTab === 'logs' && (
                 <Card className="border-slate-200 shadow-sm">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-bold text-slate-700">📋 최근 AI 로그 (100건)</CardTitle>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="text-sm font-bold text-slate-700">📋 최근 AI 로그 ({logs.length}건)</CardTitle>
+                        <Button variant="outline" size="sm" onClick={fetchLogs} className="h-7 text-xs">
+                            🔄 새로고침
+                        </Button>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="max-h-[500px] overflow-auto">
-                            <table className="w-full text-xs">
-                                <thead className="bg-slate-50 sticky top-0">
-                                    <tr>
-                                        <th className="p-2 text-left">시간</th>
-                                        <th className="p-2 text-left">Provider</th>
-                                        <th className="p-2 text-left">모델</th>
-                                        <th className="p-2 text-center">상태</th>
-                                        <th className="p-2 text-right">토큰</th>
-                                        <th className="p-2 text-left">Context</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {/* Would need to load logs separately - showing placeholder */}
-                                    <tr>
-                                        <td colSpan={6} className="p-8 text-center text-slate-400">
-                                            로그 데이터를 불러오려면 분석 탭을 확인하세요
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        {logs.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <div className="text-slate-400 mb-2">로그 데이터가 없습니다</div>
+                                <Button variant="outline" size="sm" onClick={fetchLogs}>
+                                    로그 불러오기
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="max-h-[500px] overflow-auto">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-slate-50 sticky top-0">
+                                        <tr>
+                                            <th className="p-2 text-left font-medium">시간</th>
+                                            <th className="p-2 text-left font-medium">Provider</th>
+                                            <th className="p-2 text-left font-medium">모델</th>
+                                            <th className="p-2 text-center font-medium">상태</th>
+                                            <th className="p-2 text-right font-medium">토큰</th>
+                                            <th className="p-2 text-right font-medium">지연</th>
+                                            <th className="p-2 text-left font-medium">Context</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {logs.map((log: any) => (
+                                            <tr key={log.id} className="hover:bg-slate-50">
+                                                <td className="p-2 text-slate-500">
+                                                    {new Date(log.createdAt).toLocaleString('ko-KR', { 
+                                                        month: 'numeric', day: 'numeric', 
+                                                        hour: '2-digit', minute: '2-digit' 
+                                                    })}
+                                                </td>
+                                                <td className="p-2 font-medium">{log.providerName || '-'}</td>
+                                                <td className="p-2 font-mono text-[10px]">{log.modelUsed || '-'}</td>
+                                                <td className="p-2 text-center">
+                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                                        log.status === 'SUCCESS' 
+                                                            ? 'bg-emerald-100 text-emerald-700' 
+                                                            : 'bg-rose-100 text-rose-700'
+                                                    }`}>
+                                                        {log.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-2 text-right text-purple-600">{log.totalTokens?.toLocaleString() || 0}</td>
+                                                <td className="p-2 text-right text-blue-600">{log.latencyMs || 0}ms</td>
+                                                <td className="p-2 text-slate-400 max-w-[150px] truncate" title={log.actionContext}>
+                                                    {log.actionContext || '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             )}
