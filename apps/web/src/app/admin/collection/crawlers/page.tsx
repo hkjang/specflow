@@ -66,6 +66,8 @@ export default function CrawlersPage() {
     const [autoRefresh, setAutoRefresh] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [detailCrawler, setDetailCrawler] = useState<Crawler | null>(null);
+    const [showStats, setShowStats] = useState(false);
 
     useEffect(() => {
         fetchCrawlers();
@@ -142,6 +144,36 @@ export default function CrawlersPage() {
         const total = (crawler.successCount || 0) + (crawler.errorCount || 0);
         if (total === 0) return 0;
         return Math.round(((crawler.successCount || 0) / total) * 100);
+    };
+
+    // Get next run time (approximation based on schedule)
+    const getNextRun = (schedule: string) => {
+        const parts = schedule.split(' ');
+        if (parts.length !== 5) return '알 수 없음';
+        const labels: Record<string, string> = {
+            '0 * * * *': '매시 정각',
+            '0 */2 * * *': '2시간마다',
+            '0 */4 * * *': '4시간마다',
+            '0 0 * * *': '매일 00:00',
+            '0 2 * * *': '매일 02:00',
+            '0 0 * * 1': '매주 월요일',
+            '0 0 1 * *': '매월 1일',
+        };
+        return labels[schedule] || schedule;
+    };
+
+    // Copy crawler URL
+    const copyCrawlerUrl = (url: string) => {
+        navigator.clipboard.writeText(url);
+        showToast('URL이 클립보드에 복사됨');
+    };
+
+    // Get performance grade
+    const getPerformanceGrade = (rate: number) => {
+        if (rate >= 90) return { grade: 'A', color: 'text-emerald-600 bg-emerald-50' };
+        if (rate >= 70) return { grade: 'B', color: 'text-blue-600 bg-blue-50' };
+        if (rate >= 50) return { grade: 'C', color: 'text-amber-600 bg-amber-50' };
+        return { grade: 'F', color: 'text-rose-600 bg-rose-50' };
     };
 
     const resetForm = () => {
@@ -558,7 +590,16 @@ export default function CrawlersPage() {
                                     </TableCell>
                                     <TableCell>{getCategoryBadge(crawler.category)}</TableCell>
                                     <TableCell>
-                                        <a href={crawler.url} target="_blank" rel="noopener" className="text-blue-600 text-xs font-mono underline max-w-[150px] truncate block">{crawler.url}</a>
+                                        <div className="flex items-center gap-1">
+                                            <a href={crawler.url} target="_blank" rel="noopener" className="text-blue-600 text-xs font-mono underline max-w-[120px] truncate block">{crawler.url}</a>
+                                            <button 
+                                                onClick={() => copyCrawlerUrl(crawler.url)}
+                                                className="text-slate-400 hover:text-slate-600 text-xs"
+                                                title="URL 복사"
+                                            >
+                                                📋
+                                            </button>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <code className="text-xs bg-slate-100 px-2 py-1 rounded">{crawler.schedule}</code>

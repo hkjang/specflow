@@ -28,6 +28,10 @@ export default function ExtractionDashboard() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
+    const [sortBy, setSortBy] = useState<'date' | 'status' | 'count'>('date');
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     useEffect(() => {
         fetchJobs();
@@ -78,6 +82,59 @@ export default function ExtractionDashboard() {
         const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
+
+    // Sort jobs
+    const sortedJobs = [...filteredJobs].sort((a, b) => {
+        if (sortBy === 'date') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (sortBy === 'status') return a.status.localeCompare(b.status);
+        if (sortBy === 'count') return (b.drafts?.length || 0) - (a.drafts?.length || 0);
+        return 0;
+    });
+
+    // Toast notification
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    // Toggle select all
+    const toggleSelectAll = () => {
+        if (selectedIds.length === sortedJobs.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(sortedJobs.map(j => j.id));
+        }
+    };
+
+    // Bulk delete
+    const handleBulkDelete = async () => {
+        if (!confirm(`선택한 ${selectedIds.length}개의 작업을 삭제하시겠습니까?`)) return;
+        for (const id of selectedIds) {
+            await extractionApi.deleteJob(id);
+        }
+        setJobs(prev => prev.filter(j => !selectedIds.includes(j.id)));
+        showToast(`${selectedIds.length}개 작업 삭제됨`);
+        setSelectedIds([]);
+    };
+
+    // Export jobs data
+    const exportJobsData = () => {
+        const data = sortedJobs.map(j => ({
+            id: j.id,
+            source: j.source?.metadata?.filename,
+            status: j.status,
+            draftsCount: j.drafts?.length || 0,
+            createdAt: j.createdAt
+        }));
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `extraction-jobs-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('데이터 내보내기 완료');
+    };
 
     // Calculate metrics locally from jobs
     const activeJobs = jobs.filter(j => j.status === 'PROCESSING' || j.status === 'PENDING').length;
@@ -175,27 +232,53 @@ export default function ExtractionDashboard() {
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <h3 className="font-bold text-lg flex items-center gap-2">
                         <Activity className="h-5 w-5 text-slate-500" />
-                        추출 작업 이력
+                        추출 작업 이력 ({sortedJobs.length}건)
                     </h3>
                     
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <Input 
                             placeholder="파일명 검색..." 
-                            className="h-9 w-[200px] bg-white" 
+                            className="h-9 w-[150px] bg-white" 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="h-9 w-[130px] bg-white">
+                            <SelectTrigger className="h-9 w-[100px] bg-white">
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ALL">All Status</SelectItem>
-                                <SelectItem value="COMPLETED">Completed</SelectItem>
-                                <SelectItem value="PROCESSING">Processing</SelectItem>
-                                <SelectItem value="FAILED">Failed</SelectItem>
+                                <SelectItem value="ALL">전체</SelectItem>
+                                <SelectItem value="COMPLETED">완료</SelectItem>
+                                <SelectItem value="PROCESSING">진행중</SelectItem>
+                                <SelectItem value="FAILED">실패</SelectItem>
                             </SelectContent>
                         </Select>
+                        <select 
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="h-9 text-xs border rounded px-2 bg-white"
+                        >
+                            <option value="date">날짜순</option>
+                            <option value="status">상태순</option>
+                            <option value="count">추출수</option>
+                        </select>
+                        <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={autoRefreshEnabled} 
+                                onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
+                                className="w-3 h-3"
+                            />
+                            🔄 자동
+                        </label>
+                        {selectedIds.length > 0 && (
+                            <Button variant="outline" size="sm" onClick={handleBulkDelete} className="h-8 text-xs text-rose-600">
+                                🗑️ {selectedIds.length}개 삭제
+                            </Button>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={exportJobsData} className="h-8 text-xs">
+                            📥
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => fetchJobs()} disabled={loading}>
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : '새로고침'}
                         </Button>
@@ -210,18 +293,40 @@ export default function ExtractionDashboard() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-10">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedIds.length === sortedJobs.length && sortedJobs.length > 0}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4"
+                                    />
+                                </TableHead>
                                 <TableHead className="w-[100px]">ID</TableHead>
-                                <TableHead>소스 유형</TableHead>
-                                <TableHead>파일명/출처</TableHead>
-                                <TableHead>상태 (Status)</TableHead>
-                                <TableHead>추출된 요건</TableHead>
+                                <TableHead>소스</TableHead>
+                                <TableHead>파일명</TableHead>
+                                <TableHead>상태</TableHead>
+                                <TableHead>추출수</TableHead>
                                 <TableHead>생성일</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
+                                <TableHead className="text-right">관리</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredJobs.map((job) => (
-                                <TableRow key={job.id}>
+                            {sortedJobs.map((job) => (
+                                <TableRow key={job.id} className={selectedIds.includes(job.id) ? 'bg-blue-50' : ''}>
+                                    <TableCell>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedIds.includes(job.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedIds([...selectedIds, job.id]);
+                                                } else {
+                                                    setSelectedIds(selectedIds.filter(id => id !== job.id));
+                                                }
+                                            }}
+                                            className="w-4 h-4"
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-mono text-xs text-muted-foreground">
                                         {job.id.slice(0, 8)}
                                     </TableCell>
@@ -287,6 +392,13 @@ export default function ExtractionDashboard() {
                     </Table>
                 )}
             </div>
+
+            {/* Toast Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-pulse z-50">
+                    ✓ {toastMessage}
+                </div>
+            )}
         </div>
     );
 }
