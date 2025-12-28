@@ -156,4 +156,57 @@ export const settingsApi = {
     upsert: (data: any) => api.post('/settings', data),
 };
 
+// AI Agent System API
+export const agentApi = {
+    // Agents
+    getAgents: () => api.get('/requirements/agents'),
+    
+    // Individual agent execution
+    extract: (content: string) => api.post('/requirements/agents/extract', { content }),
+    refine: (requirements: any[]) => api.post('/requirements/agents/refine', { requirements }),
+    classify: (requirements: any[], industry?: string) => api.post('/requirements/agents/classify', { requirements, industry }),
+    expand: (requirements: any[], industry?: string) => api.post('/requirements/agents/expand', { requirements, industry }),
+    validate: (requirements: any[], industry?: string) => api.post('/requirements/agents/validate', { requirements, industry }),
+    detectRisk: (requirements: any[], industry?: string) => api.post('/requirements/agents/detect-risk', { requirements, industry }),
 
+    // Pipeline
+    executePipeline: (content: string, agents?: string[], industry?: string) => 
+        api.post('/requirements/agents/pipeline', { content, agents, industry }),
+    executePipelineParallel: (content: string, agentGroups: string[][], industry?: string) =>
+        api.post('/requirements/agents/pipeline/parallel', { content, agentGroups, industry }),
+
+    // Heatmap & Analysis
+    getHeatmap: (requirements: any[], industry?: string) => api.post('/requirements/agents/heatmap', { requirements, industry }),
+    analyzeQuality: (requirements: any[], industry?: string) => api.post('/requirements/agents/quality-analysis', { requirements, industry }),
+
+    // Benchmarks
+    getBenchmarks: (industry?: string) => api.get(`/requirements/agents/benchmarks${industry ? `?industry=${industry}` : ''}`),
+
+    // Autonomous Generation
+    generateAutonomous: (config: { industry: string; systemType: string; organizationMaturity: string; regulationLevel: string; maxRequirements?: number }) =>
+        api.post('/requirements/agents/autonomous/generate', config),
+    getThinkingLog: (id: string) => api.get(`/requirements/agents/thinking/${id}`),
+
+    // Metrics
+    getMetrics: (days?: number) => api.get(`/requirements/agents/metrics${days ? `?days=${days}` : ''}`),
+    getAgentMetrics: (agentType: string, days?: number) => api.get(`/requirements/agents/metrics/${agentType}${days ? `?days=${days}` : ''}`),
+
+    // Logs
+    getLogs: (limit?: number) => api.get(`/requirements/agents/logs${limit ? `?limit=${limit}` : ''}`),
+    getLog: (id: string) => api.get(`/requirements/agents/logs/${id}`),
+
+    // Config
+    getAllConfigs: () => api.get('/requirements/agents/config'),
+    getConfig: (agentType: string) => api.get(`/requirements/agents/config/${agentType}`),
+    updateConfig: (agentType: string, data: { modelName?: string; temperature?: number; maxTokens?: number; isEnabled?: boolean }) =>
+        api.put(`/requirements/agents/config/${agentType}`, data),
+
+    // Feedback
+    submitFeedback: (data: { agentType: string; rating: number; comment?: string; isAccurate?: boolean; userId: string }) =>
+        api.post('/requirements/agents/feedback', data),
+    getFeedbackStats: () => api.get('/requirements/agents/feedback/stats'),
+
+    // Cache
+    getCacheStats: () => api.get('/requirements/agents/cache/stats'),
+    clearCache: () => api.post('/requirements/agents/cache/clear'),
+};
