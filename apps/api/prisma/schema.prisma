@@ -508,18 +508,22 @@ enum AiProviderType {
 }
 
 model AiProvider {
-  id          String         @id @default(uuid())
-  name        String
-  type        AiProviderType
-  endpoint    String         // API Base URL
-  apiKey      String?
-  models      String         // Comma separated or specific model to use
+  id                  String         @id @default(uuid())
+  name                String
+  type                AiProviderType
+  endpoint            String         // API Base URL
+  apiKey              String?
+  models              String         // Comma separated or specific model to use
+  timeout             Int            @default(600)  // Timeout in seconds (default 10 minutes)
+  maxRetries          Int            @default(3)    // Max retry attempts on failure
+  retryDelayMs        Int            @default(1000) // Delay between retries in ms
+  healthCheckEnabled  Boolean        @default(true) // Enable periodic health checks
   
-  isActive    Boolean        @default(true)
-  priority    Int            @default(1) // Higher priority attempts first
+  isActive            Boolean        @default(true)
+  priority            Int            @default(1) // Higher priority attempts first
   
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 }
 
 model MarketplaceItem {

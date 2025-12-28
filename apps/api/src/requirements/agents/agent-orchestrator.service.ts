@@ -8,6 +8,9 @@ import {
   IRequirementAgent,
   RequirementCandidate,
   ThinkingLogEntry,
+  RetryConfig,
+  CircuitBreakerState,
+  AgentHealthStatus,
 } from './agent.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,12 +21,26 @@ interface CacheEntry {
   timestamp: number;
 }
 
+// Default retry configuration
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+};
+
+// Circuit breaker settings
+const CIRCUIT_BREAKER_THRESHOLD = 5; // failures before opening
+const CIRCUIT_BREAKER_RESET_MS = 60000; // 1 minute
+
 @Injectable()
 export class AgentOrchestratorService {
   private readonly logger = new Logger(AgentOrchestratorService.name);
   private agents: Map<AgentType, IRequirementAgent> = new Map();
   private cache: Map<string, CacheEntry> = new Map();
+  private circuitBreakers: Map<AgentType, CircuitBreakerState> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
   constructor(private prisma: PrismaService) {}
 
@@ -301,5 +318,175 @@ export class AgentOrchestratorService {
       keys: Array.from(this.cache.keys())
     };
   }
-}
 
+  // --- Circuit Breaker Methods ---
+
+  private isCircuitOpen(agentType: AgentType): boolean {
+    const state = this.circuitBreakers.get(agentType);
+    if (!state) return false;
+    
+    if (state.state === 'OPEN') {
+      // Check if enough time has passed to try again
+      if (state.nextRetryTime && Date.now() >= state.nextRetryTime.getTime()) {
+        state.state = 'HALF_OPEN';
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private recordSuccess(agentType: AgentType): void {
+    const state = this.circuitBreakers.get(agentType);
+    if (state) {
+      state.failureCount = 0;
+      state.state = 'CLOSED';
+    }
+  }
+
+  private recordFailure(agentType: AgentType): void {
+    let state = this.circuitBreakers.get(agentType);
+    if (!state) {
+      state = {
+        agentType,
+        state: 'CLOSED',
+        failureCount: 0
+      };
+      this.circuitBreakers.set(agentType, state);
+    }
+    
+    state.failureCount++;
+    state.lastFailureTime = new Date();
+    
+    if (state.failureCount >= CIRCUIT_BREAKER_THRESHOLD) {
+      state.state = 'OPEN';
+      state.nextRetryTime = new Date(Date.now() + CIRCUIT_BREAKER_RESET_MS);
+      this.logger.warn(`Circuit breaker OPEN for ${agentType}`);
+    }
+  }
+
+  // --- Execute with retry ---
+
+  async executeWithRetry(
+    agentType: AgentType,
+    input: AgentInput,
+    context: AgentContext,
+    retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
+  ): Promise<AgentResult> {
+    // Check circuit breaker
+    if (this.isCircuitOpen(agentType)) {
+      return {
+        agentType,
+        success: false,
+        executionTime: 0,
+        error: `Circuit breaker is OPEN for ${agentType}. Try again later.`
+      };
+    }
+
+    let lastError: Error | null = null;
+    let delay = retryConfig.baseDelayMs;
+
+    for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+      try {
+        const result = await this.executeAgentWithTimeout(agentType, input, context);
+        
+        if (result.success) {
+          this.recordSuccess(agentType);
+          return result;
+        }
+        
+        // Non-retryable failure
+        if (!this.isRetryableError(result.error)) {
+          this.recordFailure(agentType);
+          return result;
+        }
+        
+        lastError = new Error(result.error);
+      } catch (error: any) {
+        lastError = error;
+      }
+
+      if (attempt < retryConfig.maxRetries) {
+        this.logger.warn(`Retry ${attempt + 1}/${retryConfig.maxRetries} for ${agentType}`);
+        await this.sleep(delay);
+        delay = Math.min(delay * retryConfig.backoffMultiplier, retryConfig.maxDelayMs);
+      }
+    }
+
+    this.recordFailure(agentType);
+    return {
+      agentType,
+      success: false,
+      executionTime: 0,
+      error: lastError?.message || 'Max retries exceeded'
+    };
+  }
+
+  private async executeAgentWithTimeout(
+    agentType: AgentType,
+    input: AgentInput,
+    context: AgentContext
+  ): Promise<AgentResult> {
+    const timeoutPromise = new Promise<AgentResult>((_, reject) => {
+      setTimeout(() => reject(new Error('Execution timeout')), this.DEFAULT_TIMEOUT_MS);
+    });
+
+    return Promise.race([
+      this.executeAgent(agentType, input, context),
+      timeoutPromise
+    ]);
+  }
+
+  private isRetryableError(error?: string): boolean {
+    if (!error) return false;
+    const retryablePatterns = ['timeout', 'network', 'ECONNRESET', 'ETIMEDOUT', '503', '429'];
+    return retryablePatterns.some(pattern => error.toLowerCase().includes(pattern.toLowerCase()));
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // --- Health Status ---
+
+  getAgentHealth(): AgentHealthStatus[] {
+    return Array.from(this.agents.values()).map(agent => {
+      const cbState = this.circuitBreakers.get(agent.type) || {
+        agentType: agent.type,
+        state: 'CLOSED' as const,
+        failureCount: 0
+      };
+
+      return {
+        agentType: agent.type,
+        name: agent.name,
+        status: cbState.state === 'OPEN' ? 'UNHEALTHY' : 
+                cbState.state === 'HALF_OPEN' ? 'DEGRADED' : 'HEALTHY',
+        successRate: 100 - (cbState.failureCount * 10), // Simplified calculation
+        avgLatencyMs: 0, // Would need metrics service for actual value
+        circuitBreaker: cbState
+      };
+    });
+  }
+
+  getCircuitBreakerStates(): CircuitBreakerState[] {
+    return Array.from(this.circuitBreakers.values());
+  }
+
+  resetCircuitBreaker(agentType: AgentType): void {
+    const state = this.circuitBreakers.get(agentType);
+    if (state) {
+      state.state = 'CLOSED';
+      state.failureCount = 0;
+      state.lastFailureTime = undefined;
+      state.nextRetryTime = undefined;
+      this.logger.log(`Circuit breaker reset for ${agentType}`);
+    }
+  }
+
+  resetAllCircuitBreakers(): void {
+    for (const agentType of this.circuitBreakers.keys()) {
+      this.resetCircuitBreaker(agentType);
+    }
+  }
+}

@@ -206,4 +206,110 @@ export class AgentMetricsService {
         : null
     }));
   }
+
+  // --- Advanced Metrics ---
+
+  /**
+   * Get detailed metrics with percentiles
+   */
+  async getDetailedMetrics(days = 7) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const logs = await this.prisma.agentExecutionLog.findMany({
+      where: { createdAt: { gte: startDate } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Group by agent type
+    const byType: Record<string, { times: number[]; successCount: number; tokenSum: number; lastExec?: Date }> = {};
+    
+    for (const log of logs) {
+      if (!byType[log.agentType]) {
+        byType[log.agentType] = { times: [], successCount: 0, tokenSum: 0 };
+      }
+      byType[log.agentType].times.push(log.executionMs);
+      if (log.success) byType[log.agentType].successCount++;
+      byType[log.agentType].tokenSum += log.tokenCount;
+      if (!byType[log.agentType].lastExec) {
+        byType[log.agentType].lastExec = log.createdAt;
+      }
+    }
+
+    return Object.entries(byType).map(([agentType, data]) => {
+      const sorted = [...data.times].sort((a, b) => a - b);
+      const len = sorted.length;
+      
+      return {
+        agentType,
+        totalExecutions: len,
+        successRate: len > 0 ? Math.round((data.successCount / len) * 100) : 0,
+        avgExecutionMs: len > 0 ? Math.round(sorted.reduce((a, b) => a + b, 0) / len) : 0,
+        p50Ms: len > 0 ? sorted[Math.floor(len * 0.5)] : 0,
+        p90Ms: len > 0 ? sorted[Math.floor(len * 0.9)] : 0,
+        p99Ms: len > 0 ? sorted[Math.floor(len * 0.99)] || sorted[len - 1] : 0,
+        totalTokens: data.tokenSum,
+        lastExecutionAt: data.lastExec
+      };
+    });
+  }
+
+  /**
+   * Get hourly trend for past 24 hours
+   */
+  async getHourlyTrend() {
+    const startDate = new Date();
+    startDate.setHours(startDate.getHours() - 24);
+
+    const logs = await this.prisma.agentExecutionLog.findMany({
+      where: { createdAt: { gte: startDate } }
+    });
+
+    const byHour: Record<string, { count: number; successCount: number }> = {};
+    
+    for (const log of logs) {
+      const hour = log.createdAt.toISOString().slice(0, 13) + ':00';
+      if (!byHour[hour]) {
+        byHour[hour] = { count: 0, successCount: 0 };
+      }
+      byHour[hour].count++;
+      if (log.success) byHour[hour].successCount++;
+    }
+
+    return Object.entries(byHour)
+      .map(([hour, data]) => ({
+        hour,
+        count: data.count,
+        successRate: Math.round((data.successCount / data.count) * 100)
+      }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+  }
+
+  /**
+   * Get performance summary
+   */
+  async getPerformanceSummary() {
+    const [today, week] = await Promise.all([
+      this.getMetrics(1),
+      this.getMetrics(7)
+    ]);
+
+    const avgLatencyChange = week.avgExecutionMs > 0 
+      ? Math.round(((today.avgExecutionMs - week.avgExecutionMs) / week.avgExecutionMs) * 100) 
+      : 0;
+
+    const successRateChange = week.successRate > 0 
+      ? today.successRate - week.successRate 
+      : 0;
+
+    return {
+      todayExecutions: today.totalExecutions,
+      todaySuccessRate: today.successRate,
+      weekExecutions: week.totalExecutions,
+      weekSuccessRate: week.successRate,
+      avgLatencyChange,
+      successRateChange,
+      topAgents: week.byAgentType.slice(0, 3)
+    };
+  }
 }

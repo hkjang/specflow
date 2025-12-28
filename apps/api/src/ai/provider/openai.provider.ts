@@ -9,10 +9,13 @@ export class OpenAiProvider implements IAiProvider {
     constructor(
         private readonly apiKey: string,
         private readonly modelName: string = 'gpt-4-turbo',
+        private readonly timeoutSeconds: number = 120, // 2 minutes default for cloud
     ) {
         this.openai = new OpenAI({
             apiKey: this.apiKey,
+            timeout: this.timeoutSeconds * 1000,
         });
+        this.logger.log(`OpenAI Provider initialized with ${this.timeoutSeconds}s timeout`);
     }
 
     getName(): string {

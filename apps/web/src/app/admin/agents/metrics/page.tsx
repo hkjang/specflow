@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { agentApi } from '@/lib/api';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { BarChart3, Activity, Clock, Target, TrendingUp, AlertTriangle } from 'lucide-react';
+import { BarChart3, Activity, Clock, Target, TrendingUp, Gauge } from 'lucide-react';
 
 interface Metrics {
   totalExecutions: number;
@@ -17,8 +17,21 @@ interface Metrics {
   dailyTrend: { date: string; count: number; successRate: number }[];
 }
 
+interface DetailedMetric {
+  agentType: string;
+  totalExecutions: number;
+  successRate: number;
+  avgExecutionMs: number;
+  p50Ms: number;
+  p90Ms: number;
+  p99Ms: number;
+  totalTokens: number;
+  lastExecutionAt?: string;
+}
+
 export default function AgentMetricsPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [detailedMetrics, setDetailedMetrics] = useState<DetailedMetric[]>([]);
   const [days, setDays] = useState('7');
   const [loading, setLoading] = useState(true);
 
@@ -29,8 +42,12 @@ export default function AgentMetricsPage() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      const res = await agentApi.getMetrics(parseInt(days));
+      const [res, detailedRes] = await Promise.all([
+        agentApi.getMetrics(parseInt(days)),
+        agentApi.getDetailedMetrics(parseInt(days))
+      ]);
       setMetrics(res.data);
+      setDetailedMetrics(detailedRes.data || []);
     } catch (error) {
       console.error('Failed to fetch metrics', error);
     } finally {
@@ -72,6 +89,50 @@ export default function AgentMetricsPage() {
         <MetricCard title="평균 실행 시간" value={`${metrics?.avgExecutionMs || 0}ms`} icon={Clock} color="purple" />
         <MetricCard title="총 토큰" value={metrics?.totalTokens?.toLocaleString() || 0} icon={BarChart3} color="orange" />
       </div>
+
+      {/* Percentile Metrics */}
+      {detailedMetrics.length > 0 && (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-purple-500" />
+              지연시간 Percentile (P50 / P90 / P99)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {detailedMetrics.map((m) => (
+                <div key={m.agentType} className="bg-slate-50 rounded-lg p-4">
+                  <div className="font-medium text-sm mb-3">{m.agentType}</div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-500">P50</span>
+                      <span className="font-mono text-sm">{m.p50Ms}ms</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5">
+                      <div className="bg-green-500 h-full rounded-full" style={{ width: `${Math.min(m.p50Ms / 100, 100)}%` }} />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-500">P90</span>
+                      <span className="font-mono text-sm">{m.p90Ms}ms</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5">
+                      <div className="bg-yellow-500 h-full rounded-full" style={{ width: `${Math.min(m.p90Ms / 100, 100)}%` }} />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-500">P99</span>
+                      <span className="font-mono text-sm">{m.p99Ms}ms</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5">
+                      <div className="bg-red-500 h-full rounded-full" style={{ width: `${Math.min(m.p99Ms / 100, 100)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* By Agent Type */}
@@ -175,3 +236,4 @@ function MetricCard({ title, value, icon: Icon, color }: { title: string; value:
     </Card>
   );
 }
+

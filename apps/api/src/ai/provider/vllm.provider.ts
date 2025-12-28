@@ -10,11 +10,14 @@ export class VllmProvider implements IAiProvider {
         private readonly endpoint: string,
         private readonly apiKey: string,
         private readonly modelName: string,
+        private readonly timeoutSeconds: number = 600, // 10 minutes default for local
     ) {
         this.openai = new OpenAI({
             baseURL: this.endpoint,
             apiKey: this.apiKey || 'EMPTY', // vLLM often uses 'EMPTY'
+            timeout: this.timeoutSeconds * 1000,
         });
+        this.logger.log(`vLLM Provider initialized with ${this.timeoutSeconds}s timeout`);
     }
 
     getName(): string {

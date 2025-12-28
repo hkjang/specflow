@@ -246,5 +246,145 @@ export class AgentController {
     this.orchestrator.clearCache();
     return { message: 'Cache cleared' };
   }
-}
 
+  // --- New Endpoints ---
+
+  /**
+   * Agent health status
+   */
+  @Get('health')
+  getHealth() {
+    return { agents: this.orchestrator.getAgentHealth() };
+  }
+
+  /**
+   * Detailed metrics with percentiles
+   */
+  @Get('metrics/detailed')
+  async getDetailedMetrics(@Query('days') days?: string) {
+    return this.metricsService.getDetailedMetrics(days ? parseInt(days) : 7);
+  }
+
+  /**
+   * Hourly trend
+   */
+  @Get('metrics/hourly')
+  async getHourlyTrend() {
+    return this.metricsService.getHourlyTrend();
+  }
+
+  /**
+   * Performance summary
+   */
+  @Get('metrics/summary')
+  async getPerformanceSummary() {
+    return this.metricsService.getPerformanceSummary();
+  }
+
+  /**
+   * Paginated logs
+   */
+  @Get('logs/paginated')
+  async getLogsPaginated(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string
+  ) {
+    return this.loggingService.getLogsPaginated(
+      page ? parseInt(page) : 1,
+      pageSize ? parseInt(pageSize) : 20
+    );
+  }
+
+  /**
+   * Search logs
+   */
+  @Post('logs/search')
+  async searchLogs(@Body() body: {
+    agentType?: string;
+    success?: boolean;
+    fromDate?: string;
+    toDate?: string;
+    sessionId?: string;
+    userId?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const filter = {
+      agentType: body.agentType,
+      success: body.success,
+      sessionId: body.sessionId,
+      userId: body.userId,
+      fromDate: body.fromDate ? new Date(body.fromDate) : undefined,
+      toDate: body.toDate ? new Date(body.toDate) : undefined
+    };
+    return this.loggingService.searchLogs(filter, body.page || 1, body.pageSize || 20);
+  }
+
+  /**
+   * Failed executions
+   */
+  @Get('logs/failed')
+  async getFailedExecutions(
+    @Query('days') days?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.loggingService.getFailedExecutions(
+      days ? parseInt(days) : 7,
+      limit ? parseInt(limit) : 50
+    );
+  }
+
+  /**
+   * Slow executions
+   */
+  @Get('logs/slow')
+  async getSlowExecutions(
+    @Query('threshold') threshold?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.loggingService.getSlowExecutions(
+      threshold ? parseInt(threshold) : 5000,
+      limit ? parseInt(limit) : 50
+    );
+  }
+
+  /**
+   * Circuit breaker states
+   */
+  @Get('circuit-breakers')
+  getCircuitBreakers() {
+    return { states: this.orchestrator.getCircuitBreakerStates() };
+  }
+
+  /**
+   * Reset circuit breaker
+   */
+  @Post('circuit-breakers/:agentType/reset')
+  resetCircuitBreaker(@Param('agentType') agentType: string) {
+    const type = AgentType[agentType as keyof typeof AgentType];
+    if (type) {
+      this.orchestrator.resetCircuitBreaker(type);
+      return { message: `Circuit breaker reset for ${agentType}` };
+    }
+    return { error: 'Invalid agent type' };
+  }
+
+  /**
+   * Execute with retry
+   */
+  @Post('execute-retry')
+  async executeWithRetry(@Body() body: {
+    agentType: string;
+    content: string;
+    industry?: string;
+  }) {
+    const type = AgentType[body.agentType as keyof typeof AgentType];
+    if (!type) {
+      return { error: 'Invalid agent type' };
+    }
+    const input: AgentInput = { type: 'TEXT', content: body.content };
+    const context = this.orchestrator.createSession();
+    context.industry = body.industry;
+    return this.orchestrator.executeWithRetry(type, input, context);
+  }
+}

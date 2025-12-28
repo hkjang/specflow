@@ -136,6 +136,56 @@ export interface RiskDetectionResult {
 }
 
 /**
+ * Retry Configuration
+ */
+export interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+}
+
+/**
+ * Circuit Breaker State
+ */
+export interface CircuitBreakerState {
+  agentType: AgentType;
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  failureCount: number;
+  lastFailureTime?: Date;
+  nextRetryTime?: Date;
+}
+
+/**
+ * Detailed Agent Metrics
+ */
+export interface DetailedAgentMetrics {
+  agentType: string;
+  totalExecutions: number;
+  successRate: number;
+  avgExecutionMs: number;
+  p50Ms: number;
+  p90Ms: number;
+  p99Ms: number;
+  totalTokens: number;
+  lastExecutionAt?: Date;
+  circuitBreakerState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+}
+
+/**
+ * Agent Health Status
+ */
+export interface AgentHealthStatus {
+  agentType: AgentType;
+  name: string;
+  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
+  successRate: number;
+  avgLatencyMs: number;
+  lastExecutionAt?: Date;
+  circuitBreaker: CircuitBreakerState;
+}
+
+/**
  * Base Agent Interface
  */
 export interface IRequirementAgent {

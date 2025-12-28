@@ -9,6 +9,7 @@ export class OllamaProvider implements IAiProvider {
     constructor(
         private readonly endpoint: string,
         private readonly modelName: string,
+        private readonly timeoutSeconds: number = 600, // 10 minutes default
     ) {
         // Ollama compatible endpoint usually /v1
         const baseUrl = this.endpoint.endsWith('/v1') ? this.endpoint : `${this.endpoint}/v1`;
@@ -16,8 +17,9 @@ export class OllamaProvider implements IAiProvider {
         this.openai = new OpenAI({
             baseURL: baseUrl, // e.g., http://localhost:11434/v1
             apiKey: 'ollama', // key not required but SDK needs one
-            timeout: 600000, // 10 minutes timeout for slow local inference
+            timeout: this.timeoutSeconds * 1000, // Convert to milliseconds
         });
+        this.logger.log(`Ollama Provider initialized with ${this.timeoutSeconds}s timeout`);
     }
 
     getName(): string {

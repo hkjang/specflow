@@ -174,6 +174,8 @@ export const agentApi = {
         api.post('/requirements/agents/pipeline', { content, agents, industry }),
     executePipelineParallel: (content: string, agentGroups: string[][], industry?: string) =>
         api.post('/requirements/agents/pipeline/parallel', { content, agentGroups, industry }),
+    executeWithRetry: (agentType: string, content: string, industry?: string) =>
+        api.post('/requirements/agents/execute-retry', { agentType, content, industry }),
 
     // Heatmap & Analysis
     getHeatmap: (requirements: any[], industry?: string) => api.post('/requirements/agents/heatmap', { requirements, industry }),
@@ -187,13 +189,27 @@ export const agentApi = {
         api.post('/requirements/agents/autonomous/generate', config),
     getThinkingLog: (id: string) => api.get(`/requirements/agents/thinking/${id}`),
 
+    // Health
+    getHealth: () => api.get('/requirements/agents/health'),
+
     // Metrics
     getMetrics: (days?: number) => api.get(`/requirements/agents/metrics${days ? `?days=${days}` : ''}`),
     getAgentMetrics: (agentType: string, days?: number) => api.get(`/requirements/agents/metrics/${agentType}${days ? `?days=${days}` : ''}`),
+    getDetailedMetrics: (days?: number) => api.get(`/requirements/agents/metrics/detailed${days ? `?days=${days}` : ''}`),
+    getHourlyTrend: () => api.get('/requirements/agents/metrics/hourly'),
+    getPerformanceSummary: () => api.get('/requirements/agents/metrics/summary'),
 
     // Logs
     getLogs: (limit?: number) => api.get(`/requirements/agents/logs${limit ? `?limit=${limit}` : ''}`),
     getLog: (id: string) => api.get(`/requirements/agents/logs/${id}`),
+    getLogsPaginated: (page?: number, pageSize?: number) => 
+        api.get(`/requirements/agents/logs/paginated?page=${page || 1}&pageSize=${pageSize || 20}`),
+    searchLogs: (filter: { agentType?: string; success?: boolean; fromDate?: string; toDate?: string; sessionId?: string; userId?: string; page?: number; pageSize?: number }) =>
+        api.post('/requirements/agents/logs/search', filter),
+    getFailedLogs: (days?: number, limit?: number) => 
+        api.get(`/requirements/agents/logs/failed?days=${days || 7}&limit=${limit || 50}`),
+    getSlowLogs: (threshold?: number, limit?: number) => 
+        api.get(`/requirements/agents/logs/slow?threshold=${threshold || 5000}&limit=${limit || 50}`),
 
     // Config
     getAllConfigs: () => api.get('/requirements/agents/config'),
@@ -209,4 +225,8 @@ export const agentApi = {
     // Cache
     getCacheStats: () => api.get('/requirements/agents/cache/stats'),
     clearCache: () => api.post('/requirements/agents/cache/clear'),
+
+    // Circuit Breaker
+    getCircuitBreakers: () => api.get('/requirements/agents/circuit-breakers'),
+    resetCircuitBreaker: (agentType: string) => api.post(`/requirements/agents/circuit-breakers/${agentType}/reset`),
 };

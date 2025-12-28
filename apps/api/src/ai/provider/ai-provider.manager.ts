@@ -35,11 +35,11 @@ export class AiProviderManager implements OnModuleInit {
 
         for (const config of configs) {
             if (config.type === AiProviderType.VLLM) {
-                this.providers.push(new VllmProvider(config.endpoint, config.apiKey || '', config.models));
+                this.providers.push(new VllmProvider(config.endpoint, config.apiKey || '', config.models, config.timeout || 600));
             } else if (config.type === AiProviderType.OLLAMA) {
-                this.providers.push(new OllamaProvider(config.endpoint, config.models));
+                this.providers.push(new OllamaProvider(config.endpoint, config.models, config.timeout || 600));
             } else if (config.type === AiProviderType.OPENAI) {
-                this.providers.push(new OpenAiProvider(config.apiKey || '', config.models));
+                this.providers.push(new OpenAiProvider(config.apiKey || '', config.models, config.timeout || 120));
             }
         }
 

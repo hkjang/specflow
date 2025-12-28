@@ -19,6 +19,9 @@ export default function AiSettingsPage() {
         endpoint: '',
         apiKey: '',
         models: '',
+        timeout: 120,
+        maxRetries: 3,
+        retryDelayMs: 1000,
         isActive: true,
         priority: 1
     });
@@ -57,7 +60,7 @@ export default function AiSettingsPage() {
                 await aiApi.createProvider(form);
             }
             fetchProviders();
-            setForm({ id: undefined, name: '', type: 'OPENAI', endpoint: '', apiKey: '', models: '', isActive: true, priority: 1 });
+            setForm({ id: undefined, name: '', type: 'OPENAI', endpoint: '', apiKey: '', models: '', timeout: 120, maxRetries: 3, retryDelayMs: 1000, isActive: true, priority: 1 });
         } catch (error) {
             console.error(error);
             alert('저장 실패');
@@ -176,7 +179,7 @@ export default function AiSettingsPage() {
                             <CardDescription>OpenAI, Anthropic, 또는 로컬 LLM (Ollama) 연결을 설정합니다.</CardDescription>
                         </div>
                         {form.id && (
-                            <Button variant="outline" size="sm" onClick={() => setForm({ id: undefined, name: '', type: 'OPENAI', endpoint: '', apiKey: '', models: '', isActive: true, priority: 1 })}>
+                            <Button variant="outline" size="sm" onClick={() => setForm({ id: undefined, name: '', type: 'OPENAI', endpoint: '', apiKey: '', models: '', timeout: 120, maxRetries: 3, retryDelayMs: 1000, isActive: true, priority: 1 })}>
                                 취소 (새로 만들기)
                             </Button>
                         )}
@@ -246,6 +249,59 @@ export default function AiSettingsPage() {
                                     onChange={(e) => handleChange('priority', parseInt(e.target.value))}
                                 />
                             </div>
+                        </div>
+
+                        {/* Advanced Settings */}
+                        <div className="space-y-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <Label className="text-slate-700 font-medium">⚙️ 고급 설정</Label>
+                                <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">선택사항</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-slate-600">타임아웃 (초)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder={form.type === 'OPENAI' ? '120' : '600'}
+                                        value={form.timeout}
+                                        onChange={(e) => handleChange('timeout', parseInt(e.target.value) || (form.type === 'OPENAI' ? 120 : 600))}
+                                    />
+                                    <p className="text-[9px] text-slate-500">
+                                        {form.type === 'OPENAI' ? '클라우드: 60-180초' : '로컬: 300-900초'}
+                                    </p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-slate-600">재시도 횟수</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="3"
+                                        min="0"
+                                        max="10"
+                                        value={form.maxRetries}
+                                        onChange={(e) => handleChange('maxRetries', parseInt(e.target.value) || 3)}
+                                    />
+                                    <p className="text-[9px] text-slate-500">실패 시 재시도 (0-10)</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-slate-600">재시도 지연 (ms)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="1000"
+                                        step="100"
+                                        value={form.retryDelayMs}
+                                        onChange={(e) => handleChange('retryDelayMs', parseInt(e.target.value) || 1000)}
+                                    />
+                                    <p className="text-[9px] text-slate-500">재시도 간격</p>
+                                </div>
+                            </div>
+
+                            {(form.type === 'OLLAMA' || form.type === 'VLLM') && (
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                                    💡 <strong>로컬 모델 팁:</strong> Ollama/vLLM은 첫 요청 시 모델 로딩에 시간이 걸릴 수 있습니다. 
+                                    타임아웃을 600초 이상, 재시도를 3회 이상 설정하세요.
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                     <CardFooter className="justify-end border-t border-slate-100 bg-slate-50/50 p-4">
