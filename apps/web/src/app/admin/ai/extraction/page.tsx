@@ -1070,6 +1070,42 @@ export default function AiExtractionPage() {
 
                 {/* History Tab */}
                 <TabsContent value="history" className="space-y-4">
+                    {/* Trend Chart */}
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4 text-indigo-500" />
+                                7일 추출 트렌드
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-end justify-between h-24 gap-1">
+                                {trendData.map((day, idx) => (
+                                    <TooltipProvider key={idx}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className="flex-1 flex flex-col items-center gap-1">
+                                                    <div 
+                                                        className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t transition-all hover:from-indigo-600 hover:to-indigo-500 cursor-pointer"
+                                                        style={{ height: `${(day.count / maxTrendCount) * 100}%`, minHeight: '4px' }}
+                                                    />
+                                                    <span className="text-[10px] text-slate-500">{day.date}</span>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <div className="text-xs">
+                                                    <p className="font-medium">{day.count}건 추출</p>
+                                                    <p className="text-slate-400">성공률 {day.successRate}%</p>
+                                                </div>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* History List */}
                     <Card className="border-slate-200 shadow-sm">
                         <CardHeader>
                             <div className="flex items-center justify-between">
@@ -1080,49 +1116,99 @@ export default function AiExtractionPage() {
                                     </CardTitle>
                                     <CardDescription>최근 실행된 추출 작업 목록입니다.</CardDescription>
                                 </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={handleRefresh}
-                                    disabled={refreshing}
-                                >
-                                    <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
-                                    새로고침
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    {/* Status Filter Buttons */}
+                                    <div className="flex rounded-lg border bg-slate-100 p-0.5">
+                                        {(['all', 'success', 'failed', 'processing'] as const).map((status) => (
+                                            <button
+                                                key={status}
+                                                onClick={() => setHistoryFilter(status)}
+                                                className={cn(
+                                                    "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                                    historyFilter === status
+                                                        ? "bg-white shadow text-slate-900"
+                                                        : "text-slate-500 hover:text-slate-700"
+                                                )}
+                                            >
+                                                {status === 'all' && '전체'}
+                                                {status === 'success' && '성공'}
+                                                {status === 'failed' && '실패'}
+                                                {status === 'processing' && '처리중'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={handleRefresh}
+                                        disabled={refreshing}
+                                    >
+                                        <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                                    </Button>
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
-                                {stats.recentExtractions.map((item) => (
-                                    <div 
-                                        key={item.id}
-                                        className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            {getStatusIcon(item.status)}
-                                            <div>
-                                                <p className="font-medium text-sm text-slate-800">{item.documentName}</p>
-                                                <p className="text-xs text-slate-500">
-                                                    {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: ko })}
-                                                </p>
+                                {filteredExtractions.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                        <p>필터에 맞는 항목이 없습니다.</p>
+                                    </div>
+                                ) : (
+                                    filteredExtractions.map((item, idx) => (
+                                        <div 
+                                            key={item.id}
+                                            className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-all hover:shadow-sm animate-in fade-in slide-in-from-left-2"
+                                            style={{ animationDelay: `${idx * 50}ms` }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {getStatusIcon(item.status)}
+                                                <div>
+                                                    <p className="font-medium text-sm text-slate-800">{item.documentName}</p>
+                                                    <p className="text-xs text-slate-500">
+                                                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: ko })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right">
+                                                    {item.status === 'success' && (
+                                                        <>
+                                                            <p className="text-sm font-medium text-slate-800">{item.extractedCount}개 추출</p>
+                                                            <p className="text-xs text-slate-500">{item.processingTime}초</p>
+                                                        </>
+                                                    )}
+                                                    {item.status === 'processing' && (
+                                                        <Badge className="bg-blue-100 text-blue-700">처리중</Badge>
+                                                    )}
+                                                    {item.status === 'failed' && (
+                                                        <Badge className="bg-red-100 text-red-700">실패</Badge>
+                                                    )}
+                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="sm">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem>
+                                                            <Eye className="h-4 w-4 mr-2" />
+                                                            상세 보기
+                                                        </DropdownMenuItem>
+                                                        {item.status === 'failed' && (
+                                                            <DropdownMenuItem>
+                                                                <RotateCcw className="h-4 w-4 mr-2" />
+                                                                재시도
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            {item.status === 'success' && (
-                                                <>
-                                                    <p className="text-sm font-medium text-slate-800">{item.extractedCount}개 추출</p>
-                                                    <p className="text-xs text-slate-500">{item.processingTime}초</p>
-                                                </>
-                                            )}
-                                            {item.status === 'processing' && (
-                                                <Badge className="bg-blue-100 text-blue-700">처리중</Badge>
-                                            )}
-                                            {item.status === 'failed' && (
-                                                <Badge className="bg-red-100 text-red-700">실패</Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                         </CardContent>
                     </Card>
