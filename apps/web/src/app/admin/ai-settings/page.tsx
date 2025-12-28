@@ -43,6 +43,8 @@ export default function AiSettingsPage() {
     const [darkMode, setDarkMode] = useState(false);
     const [showComparison, setShowComparison] = useState(false);
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+    const [pinnedProviders, setPinnedProviders] = useState<string[]>([]);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const fetchProviders = async () => {
         try {
@@ -243,6 +245,41 @@ export default function AiSettingsPage() {
             await aiApi.updateProvider(p.id, { isActive: active });
         }
         await fetchProviders();
+        showToast(active ? '모든 Provider 활성화됨' : '모든 Provider 비활성화됨');
+    };
+
+    // Toast notification
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    // Toggle pinned provider
+    const togglePinned = (providerId: string) => {
+        setPinnedProviders(prev => 
+            prev.includes(providerId) 
+                ? prev.filter(id => id !== providerId)
+                : [...prev, providerId]
+        );
+    };
+
+    // Copy provider config to clipboard
+    const copyProviderConfig = (provider: any) => {
+        const config = {
+            name: provider.name,
+            type: provider.type,
+            endpoint: provider.endpoint,
+            models: provider.models,
+        };
+        navigator.clipboard.writeText(JSON.stringify(config, null, 2));
+        showToast('Provider 설정이 클립보드에 복사됨');
+    };
+
+    // Calculate requests per minute (approximate)
+    const getRequestsPerMinute = () => {
+        const total = statuses.reduce((s, st) => s + (st.successCount || 0) + (st.failureCount || 0), 0);
+        // Approximation based on 7-day data
+        return Math.round(total / (7 * 24 * 60));
     };
 
     const handleChange = (key: string, value: any) => {
@@ -578,6 +615,24 @@ export default function AiSettingsPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center ml-2 shrink-0">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className={`h-8 w-8 ${pinnedProviders.includes(p.id) ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}`}
+                                            onClick={() => togglePinned(p.id)}
+                                            title="즐겨찾기"
+                                        >
+                                            {pinnedProviders.includes(p.id) ? '★' : '☆'}
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="h-8 w-8 text-slate-400 hover:text-slate-600"
+                                            onClick={() => copyProviderConfig(p)}
+                                            title="설정 복사"
+                                        >
+                                            📋
+                                        </Button>
                                         <Button variant="ghost" size="sm" className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(p)}>
                                             <Edit className="h-4 w-4" />
                                         </Button>
@@ -1079,6 +1134,12 @@ export default function AiSettingsPage() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+            {/* Toast Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-pulse z-50">
+                    ✓ {toastMessage}
+                </div>
             )}
         </div>
     );
