@@ -17,6 +17,9 @@ export default function AiSettingsPage() {
     const [statuses, setStatuses] = useState<any[]>([]);
     const [logStats, setLogStats] = useState<any>(null);
     const [recentErrors, setRecentErrors] = useState<any[]>([]);
+    const [autoRefresh, setAutoRefresh] = useState(false);
+    const [costBudget, setCostBudget] = useState<number>(10); // $10 default budget
+    const [showBudgetAlert, setShowBudgetAlert] = useState(false);
     const [form, setForm] = useState<any>({
         name: '',
         type: 'OPENAI',
@@ -83,6 +86,57 @@ export default function AiSettingsPage() {
         fetchProviders();
         fetchAnalytics();
     }, []);
+
+    // Auto-refresh every 30 seconds
+    useEffect(() => {
+        if (!autoRefresh) return;
+        const interval = setInterval(() => {
+            fetchProviders();
+            if (activeTab === 'analytics') fetchAnalytics();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [autoRefresh, activeTab]);
+
+    // Cost budget alert check
+    useEffect(() => {
+        const totalCost = statuses.reduce((sum: number, s: any) => sum + (s.estimatedCostUsd || 0), 0);
+        if (totalCost >= costBudget && !showBudgetAlert) {
+            setShowBudgetAlert(true);
+        }
+    }, [statuses, costBudget]);
+
+    // Export analytics data
+    const exportAnalytics = () => {
+        const data = {
+            exportDate: new Date().toISOString(),
+            summary: logStats?.summary,
+            byProvider: logStats?.byProvider,
+            byModel: logStats?.byModel,
+            statuses: statuses.map(s => ({
+                name: s.name,
+                successCount: s.successCount,
+                failureCount: s.failureCount,
+                avgLatencyMs: s.avgLatencyMs,
+                totalTokensUsed: s.totalTokensUsed,
+                estimatedCostUsd: s.estimatedCostUsd,
+            })),
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ai-analytics-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // Toggle all providers
+    const toggleAllProviders = async (active: boolean) => {
+        for (const p of providers) {
+            await aiApi.updateProvider(p.id, { isActive: active });
+        }
+        await fetchProviders();
+    };
 
     const handleChange = (key: string, value: any) => {
         setForm({ ...form, [key]: value });
@@ -152,27 +206,77 @@ export default function AiSettingsPage() {
                 steps={['관리자', 'AI 설정']}
             />
 
-            {/* Tab Navigation */}
-            <div className="flex gap-2 border-b border-slate-200">
-                <button 
-                    onClick={() => setActiveTab('settings')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                    ⚙️ 설정
-                </button>
-                <button 
-                    onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'analytics' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                    📊 분석
-                </button>
-                <button 
-                    onClick={() => setActiveTab('logs')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                >
-                    📋 로그
-                </button>
+            {/* Tab Navigation with Quick Actions */}
+            <div className="flex justify-between items-center border-b border-slate-200">
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setActiveTab('settings')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        ⚙️ 설정
+                    </button>
+                    <button 
+                        onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'analytics' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        📊 분석
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('logs')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                        📋 로그
+                    </button>
+                </div>
+                <div className="flex items-center gap-2 pb-2">
+                    <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={autoRefresh} 
+                            onChange={(e) => setAutoRefresh(e.target.checked)}
+                            className="w-3 h-3"
+                        />
+                        🔄 자동 (30s)
+                    </label>
+                    <Button variant="outline" size="sm" onClick={exportAnalytics} className="h-7 text-xs">
+                        📥 내보내기
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => toggleAllProviders(true)} className="h-7 text-xs text-emerald-600 hover:bg-emerald-50">
+                        ✓ 모두 활성
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => toggleAllProviders(false)} className="h-7 text-xs text-rose-600 hover:bg-rose-50">
+                        ✗ 모두 비활성
+                    </Button>
+                </div>
             </div>
+
+            {/* Cost Budget Alert */}
+            {showBudgetAlert && (
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <span className="text-2xl">⚠️</span>
+                        <div>
+                            <div className="font-bold text-amber-800">비용 예산 초과!</div>
+                            <div className="text-sm text-amber-700">
+                                현재 비용 ${statuses.reduce((sum: number, s: any) => sum + (s.estimatedCostUsd || 0), 0).toFixed(4)}이 
+                                예산 ${costBudget}을 초과했습니다.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Input 
+                            type="number" 
+                            value={costBudget} 
+                            onChange={(e) => setCostBudget(Number(e.target.value))}
+                            className="w-20 h-8 text-sm"
+                            step="1"
+                        />
+                        <Button variant="outline" size="sm" onClick={() => setShowBudgetAlert(false)} className="h-8">
+                            무시
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {activeTab === 'settings' && (
             <>
@@ -599,6 +703,45 @@ export default function AiSettingsPage() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Daily Trend Chart */}
+                    {logStats.byDay?.length > 0 && (
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-bold text-slate-700">📅 일별 추이 (7일)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    {logStats.byDay.map((day: any) => {
+                                        const total = day.success + day.failed;
+                                        const successPct = total > 0 ? (day.success / total) * 100 : 0;
+                                        return (
+                                            <div key={day.date} className="flex items-center gap-3">
+                                                <span className="text-xs text-slate-500 w-20 shrink-0">
+                                                    {new Date(day.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                                                </span>
+                                                <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden flex">
+                                                    <div 
+                                                        className="h-full bg-emerald-400 transition-all" 
+                                                        style={{ width: `${successPct}%` }}
+                                                        title={`성공: ${day.success}`}
+                                                    />
+                                                    <div 
+                                                        className="h-full bg-rose-400 transition-all" 
+                                                        style={{ width: `${100 - successPct}%` }}
+                                                        title={`실패: ${day.failed}`}
+                                                    />
+                                                </div>
+                                                <div className="text-xs text-slate-500 w-28 text-right shrink-0">
+                                                    {total}건 · {day.tokens?.toLocaleString()} 토큰
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Recent Errors */}
                     {recentErrors.length > 0 && (
