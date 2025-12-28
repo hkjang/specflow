@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { aiApi } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,8 @@ export default function AiSettingsPage() {
     const [testResult, setTestResult] = useState<any>(null);
     const [logs, setLogs] = useState<any[]>([]);
     const [showRecommendations, setShowRecommendations] = useState(true);
+    const [customTestPrompt, setCustomTestPrompt] = useState('');
+    const [showShortcuts, setShowShortcuts] = useState(false);
 
     const fetchProviders = async () => {
         try {
@@ -152,6 +154,60 @@ export default function AiSettingsPage() {
             setShowBudgetAlert(true);
         }
     }, [statuses, costBudget]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if typing in input
+            if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+            
+            if (e.key === '1') setActiveTab('settings');
+            if (e.key === '2') { setActiveTab('analytics'); fetchAnalytics(); }
+            if (e.key === '3') { setActiveTab('logs'); fetchLogs(); }
+            if (e.key === 'r' && !e.ctrlKey) { fetchProviders(); fetchAnalytics(); }
+            if (e.key === 'h') handleHealthCheck();
+            if (e.key === '?') setShowShortcuts(s => !s);
+            if (e.key === 'Escape') setShowShortcuts(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Calculate performance score (0-100)
+    const getPerformanceScore = (status: any) => {
+        if (!status) return 0;
+        const total = status.successCount + status.failureCount;
+        if (total === 0) return 50; // No data
+        
+        const successRate = status.successCount / total;
+        const latencyScore = Math.max(0, 100 - (status.avgLatencyMs / 100)); // 10s = 0 score
+        const reliabilityScore = successRate * 100;
+        
+        return Math.round((reliabilityScore * 0.7) + (latencyScore * 0.3));
+    };
+
+    const getScoreGrade = (score: number) => {
+        if (score >= 90) return { grade: 'A', color: 'text-emerald-600 bg-emerald-50' };
+        if (score >= 80) return { grade: 'B', color: 'text-blue-600 bg-blue-50' };
+        if (score >= 70) return { grade: 'C', color: 'text-amber-600 bg-amber-50' };
+        if (score >= 60) return { grade: 'D', color: 'text-orange-600 bg-orange-50' };
+        return { grade: 'F', color: 'text-rose-600 bg-rose-50' };
+    };
+
+    // Custom test handler
+    const handleCustomTest = async () => {
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const prompt = customTestPrompt || 'Hello, this is a test.';
+            const res = await aiApi.testProvider(prompt, providers.find(p => p.isActive)?.id);
+            setTestResult(res.data);
+        } catch (error) {
+            setTestResult({ status: 'FAILED', message: 'Connection refused or timeout' });
+        } finally {
+            setTesting(false);
+        }
+    };
 
     // Export analytics data
     const exportAnalytics = () => {
@@ -295,8 +351,31 @@ export default function AiSettingsPage() {
                     <Button variant="outline" size="sm" onClick={() => toggleAllProviders(false)} className="h-7 text-xs text-rose-600 hover:bg-rose-50">
                         ✗ 모두 비활성
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowShortcuts(true)} className="h-7 text-xs text-slate-400">
+                        ⌨️ ?
+                    </Button>
                 </div>
             </div>
+
+            {/* Keyboard Shortcuts Modal */}
+            {showShortcuts && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+                    <Card className="w-80 shadow-xl" onClick={e => e.stopPropagation()}>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold">⌨️ 키보드 단축키</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-1 text-sm">
+                            <div className="flex justify-between"><span className="text-slate-500">설정 탭</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">1</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">분석 탭</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">2</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">로그 탭</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">3</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">새로고침</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">R</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">헬스체크</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">H</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">도움말 토글</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">?</kbd></div>
+                            <div className="flex justify-between"><span className="text-slate-500">닫기</span><kbd className="px-2 py-0.5 bg-slate-100 rounded text-xs">ESC</kbd></div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
             {/* Cost Budget Alert */}
             {showBudgetAlert && (
@@ -400,7 +479,11 @@ export default function AiSettingsPage() {
                         </CardHeader>
                         <CardContent className="space-y-2">
                             {providers.length === 0 && <div className="text-slate-400 text-sm p-4 text-center">설정된 Provider가 없습니다.</div>}
-                            {providers.map((p) => (
+                            {providers.map((p) => {
+                                const status = statuses.find((s: any) => s.name === p.name);
+                                const score = getPerformanceScore(status);
+                                const { grade, color } = getScoreGrade(score);
+                                return (
                                 <div key={p.id} className="p-3 border rounded-md flex justify-between items-center bg-white hover:bg-slate-50 transition-colors">
                                     <div className="w-full overflow-hidden">
                                         <div className="flex items-center gap-2 mb-1">
@@ -409,6 +492,12 @@ export default function AiSettingsPage() {
                                                 <Badge className="bg-emerald-500 hover:bg-emerald-600 text-[10px] h-5">Active</Badge>
                                             ) : (
                                                 <Badge variant="secondary" className="text-[10px] h-5 text-slate-500">Disabled</Badge>
+                                            )}
+                                            {/* Performance Score Badge */}
+                                            {status && (
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${color}`} title={`성능 점수: ${score}/100`}>
+                                                    {grade}
+                                                </span>
                                             )}
                                         </div>
                                         <div className="text-xs text-slate-500 flex items-center gap-2">
@@ -425,19 +514,28 @@ export default function AiSettingsPage() {
                                         </Button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </CardContent>
                     </Card>
 
                     <Card className="border-slate-200 shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-sm font-bold text-slate-700">연결 테스트 (Connection Test)</CardTitle>
+                            <CardTitle className="text-sm font-bold text-slate-700">🧪 연결 테스트 (Connection Test)</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <Button className="w-full bg-indigo-600 hover:bg-indigo-700" size="sm" onClick={handleTest} disabled={testing || providers.length === 0}>
-                                {testing ? <Plug className="h-3 w-3 animate-pulse mr-2" /> : <Plug className="h-3 w-3 mr-2" />}
-                                {testing ? '테스트 수행 중...' : '활성 Provider 테스트'}
-                            </Button>
+                            <div className="flex gap-2">
+                                <Input 
+                                    placeholder="테스트 프롬프트 (선택사항)"
+                                    value={customTestPrompt}
+                                    onChange={(e) => setCustomTestPrompt(e.target.value)}
+                                    className="flex-1 h-9 text-sm"
+                                />
+                                <Button className="bg-indigo-600 hover:bg-indigo-700 shrink-0" size="sm" onClick={handleCustomTest} disabled={testing || providers.length === 0}>
+                                    {testing ? <Plug className="h-3 w-3 animate-pulse mr-2" /> : <Plug className="h-3 w-3 mr-2" />}
+                                    {testing ? '테스트중...' : '테스트'}
+                                </Button>
+                            </div>
                             {testResult && (
                                 <div className={`p-3 rounded-lg text-xs border ${testResult.status === 'SUCCESS' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
                                     <div className="flex items-center gap-2 font-bold mb-1">
