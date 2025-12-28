@@ -45,6 +45,9 @@ export default function AiSettingsPage() {
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
     const [pinnedProviders, setPinnedProviders] = useState<string[]>([]);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [providerSort, setProviderSort] = useState<'name' | 'priority' | 'score'>('priority');
+    const [logSearch, setLogSearch] = useState('');
+    const [logFilter, setLogFilter] = useState<'all' | 'success' | 'failed'>('all');
 
     const fetchProviders = async () => {
         try {
@@ -280,6 +283,41 @@ export default function AiSettingsPage() {
         const total = statuses.reduce((s, st) => s + (st.successCount || 0) + (st.failureCount || 0), 0);
         // Approximation based on 7-day data
         return Math.round(total / (7 * 24 * 60));
+    };
+
+    // Get sorted providers
+    const getSortedProviders = () => {
+        const sorted = [...providers].sort((a, b) => {
+            // Pinned providers always first
+            const aPinned = pinnedProviders.includes(a.id);
+            const bPinned = pinnedProviders.includes(b.id);
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return 1;
+            
+            if (providerSort === 'name') return a.name.localeCompare(b.name);
+            if (providerSort === 'priority') return (b.priority || 0) - (a.priority || 0);
+            if (providerSort === 'score') {
+                const scoreA = getPerformanceScore(statuses.find(s => s.name === a.name));
+                const scoreB = getPerformanceScore(statuses.find(s => s.name === b.name));
+                return scoreB - scoreA;
+            }
+            return 0;
+        });
+        return sorted;
+    };
+
+    // Get filtered logs
+    const getFilteredLogs = () => {
+        return logs.filter(log => {
+            const matchesSearch = !logSearch || 
+                log.providerName?.toLowerCase().includes(logSearch.toLowerCase()) ||
+                log.modelUsed?.toLowerCase().includes(logSearch.toLowerCase()) ||
+                log.actionContext?.toLowerCase().includes(logSearch.toLowerCase());
+            const matchesFilter = logFilter === 'all' || 
+                (logFilter === 'success' && log.status === 'SUCCESS') ||
+                (logFilter === 'failed' && log.status === 'FAILED');
+            return matchesSearch && matchesFilter;
+        });
     };
 
     const handleChange = (key: string, value: any) => {
@@ -583,12 +621,21 @@ export default function AiSettingsPage() {
                 {/* Provider List */}
                 <div className="space-y-4">
                     <Card className="border-slate-200 shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-bold uppercase text-slate-500">연동된 Provider</CardTitle>
+                            <select 
+                                value={providerSort}
+                                onChange={(e) => setProviderSort(e.target.value as any)}
+                                className="text-xs border rounded px-2 py-1 text-slate-600"
+                            >
+                                <option value="priority">우선순위</option>
+                                <option value="name">이름순</option>
+                                <option value="score">성능순</option>
+                            </select>
                         </CardHeader>
                         <CardContent className="space-y-2">
                             {providers.length === 0 && <div className="text-slate-400 text-sm p-4 text-center">설정된 Provider가 없습니다.</div>}
-                            {providers.map((p) => {
+                            {getSortedProviders().map((p) => {
                                 const status = statuses.find((s: any) => s.name === p.name);
                                 const score = getPerformanceScore(status);
                                 const { grade, color } = getScoreGrade(score);
@@ -1073,16 +1120,33 @@ export default function AiSettingsPage() {
             {/* Logs Tab */}
             {activeTab === 'logs' && (
                 <Card className="border-slate-200 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle className="text-sm font-bold text-slate-700">📋 최근 AI 로그 ({logs.length}건)</CardTitle>
-                        <Button variant="outline" size="sm" onClick={fetchLogs} className="h-7 text-xs">
-                            🔄 새로고침
-                        </Button>
+                    <CardHeader className="flex flex-row items-center justify-between gap-2">
+                        <CardTitle className="text-sm font-bold text-slate-700 shrink-0">📋 로그 ({getFilteredLogs().length}건)</CardTitle>
+                        <div className="flex items-center gap-2 flex-1 justify-end">
+                            <Input 
+                                placeholder="검색 (Provider, 모델, Context)"
+                                value={logSearch}
+                                onChange={(e) => setLogSearch(e.target.value)}
+                                className="h-7 text-xs max-w-[200px]"
+                            />
+                            <select 
+                                value={logFilter}
+                                onChange={(e) => setLogFilter(e.target.value as any)}
+                                className="text-xs border rounded px-2 py-1 h-7 text-slate-600"
+                            >
+                                <option value="all">전체</option>
+                                <option value="success">✓ 성공</option>
+                                <option value="failed">✗ 실패</option>
+                            </select>
+                            <Button variant="outline" size="sm" onClick={fetchLogs} className="h-7 text-xs">
+                                🔄
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                        {logs.length === 0 ? (
+                        {getFilteredLogs().length === 0 ? (
                             <div className="p-8 text-center">
-                                <div className="text-slate-400 mb-2">로그 데이터가 없습니다</div>
+                                <div className="text-slate-400 mb-2">{logs.length === 0 ? '로그 데이터가 없습니다' : '검색 결과가 없습니다'}</div>
                                 <Button variant="outline" size="sm" onClick={fetchLogs}>
                                     로그 불러오기
                                 </Button>
@@ -1102,7 +1166,7 @@ export default function AiSettingsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {logs.map((log: any) => (
+                                        {getFilteredLogs().map((log: any) => (
                                             <tr key={log.id} className="hover:bg-slate-50">
                                                 <td className="p-2 text-slate-500">
                                                     {new Date(log.createdAt).toLocaleString('ko-KR', { 
