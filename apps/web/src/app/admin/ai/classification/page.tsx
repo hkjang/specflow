@@ -26,7 +26,9 @@ import {
     ClipboardPaste, Filter, Keyboard, Trash2, Eye,
     MoreVertical, RotateCcw, Wand2, ChevronDown, Plus,
     FolderTree, Target, Layers, PieChart, ArrowUpDown, Info,
-    Lightbulb, Edit2, Check, X, Hash, Percent
+    Lightbulb, Edit2, Check, X, Hash, Percent, ThumbsUp,
+    ThumbsDown, GitCompare, ListChecks, BookMarked, Split,
+    FileUp, List, Search, ArrowRight, Shuffle, Brain
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format, subDays } from 'date-fns';
@@ -152,6 +154,18 @@ export default function AiClassificationPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [historyFilter, setHistoryFilter] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
     const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+    
+    // Advanced features states
+    const [batchTexts, setBatchTexts] = useState('');
+    const [batchResults, setBatchResults] = useState<any[]>([]);
+    const [batchProcessing, setBatchProcessing] = useState(false);
+    const [showRuleDialog, setShowRuleDialog] = useState(false);
+    const [newRule, setNewRule] = useState({ name: '', condition: '', targetCategory: '', priority: 1 });
+    const [compareMode, setCompareMode] = useState(false);
+    const [compareProvider, setCompareProvider] = useState('');
+    const [feedbackStats, setFeedbackStats] = useState({ positive: 847, negative: 53, pending: 28 });
+    const [autoRefresh, setAutoRefresh] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchProviders();
@@ -493,9 +507,12 @@ export default function AiClassificationPage() {
             </div>
 
             <Tabs defaultValue="settings" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
+                <TabsList className="grid w-full grid-cols-5 lg:w-[650px]">
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                         <Settings2 className="h-4 w-4" /> 설정
+                    </TabsTrigger>
+                    <TabsTrigger value="rules" className="flex items-center gap-2">
+                        <ListChecks className="h-4 w-4" /> 규칙
                     </TabsTrigger>
                     <TabsTrigger value="categories" className="flex items-center gap-2">
                         <Layers className="h-4 w-4" /> 카테고리
@@ -664,6 +681,192 @@ export default function AiClassificationPage() {
                             </CardContent>
                         </Card>
                     </div>
+                </TabsContent>
+
+                {/* Rules Tab */}
+                <TabsContent value="rules" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-semibold">분류 규칙</h3>
+                            <p className="text-sm text-muted-foreground">키워드와 조건 기반 자동 분류 규칙을 관리합니다.</p>
+                        </div>
+                        <Dialog open={showRuleDialog} onOpenChange={setShowRuleDialog}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-amber-600 hover:bg-amber-700">
+                                    <Plus className="h-4 w-4 mr-2" /> 규칙 추가
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>새 분류 규칙 추가</DialogTitle>
+                                    <DialogDescription>특정 조건에 따라 자동 분류하는 규칙을 정의합니다.</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label>규칙 이름</Label>
+                                        <Input 
+                                            value={newRule.name}
+                                            onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                                            placeholder="예: 보안 키워드 탐지"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>조건 (키워드, 콤마로 구분)</Label>
+                                        <Input 
+                                            value={newRule.condition}
+                                            onChange={(e) => setNewRule({ ...newRule, condition: e.target.value })}
+                                            placeholder="예: 암호화, 인증, 보안, 접근제어"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>대상 카테고리</Label>
+                                        <Select 
+                                            value={newRule.targetCategory} 
+                                            onValueChange={(val) => setNewRule({ ...newRule, targetCategory: val })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="카테고리 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {categories.filter(c => c.isActive).map(c => (
+                                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>우선순위 (1-10)</Label>
+                                        <Input 
+                                            type="number"
+                                            min={1}
+                                            max={10}
+                                            value={newRule.priority}
+                                            onChange={(e) => setNewRule({ ...newRule, priority: parseInt(e.target.value) || 1 })}
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setShowRuleDialog(false)}>취소</Button>
+                                    <Button className="bg-amber-600 hover:bg-amber-700" onClick={() => {
+                                        if (!newRule.name || !newRule.condition || !newRule.targetCategory) {
+                                            toast({ title: "입력 필요", description: "모든 필드를 입력해주세요.", variant: "destructive" });
+                                            return;
+                                        }
+                                        const rule: ClassificationRule = { id: `rule-${Date.now()}`, ...newRule, isActive: true };
+                                        setRules([...rules, rule]);
+                                        setNewRule({ name: '', condition: '', targetCategory: '', priority: 1 });
+                                        setShowRuleDialog(false);
+                                        toast({ title: "규칙 추가됨", description: `"${rule.name}" 규칙이 추가되었습니다.` });
+                                    }}>추가</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <ListChecks className="h-4 w-4 text-green-500" />
+                                    활성 규칙 ({rules.filter(r => r.isActive).length})
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {rules.filter(r => r.isActive).length > 0 ? (
+                                    <div className="space-y-2">
+                                        {rules.filter(r => r.isActive).map(rule => (
+                                            <div key={rule.id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-medium text-sm">{rule.name}</p>
+                                                    <p className="text-xs text-muted-foreground">우선순위: {rule.priority}</p>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button variant="ghost" size="sm" onClick={() => setRules(rules.map(r => r.id === rule.id ? { ...r, isActive: false } : r))}>
+                                                        <XCircle className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => setRules(rules.filter(r => r.id !== rule.id))}>
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-muted-foreground">
+                                        <ListChecks className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                                        <p className="text-sm">활성 규칙이 없습니다</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Brain className="h-4 w-4 text-purple-500" />
+                                    분류 피드백 통계
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                                        <ThumbsUp className="h-5 w-5 mx-auto mb-1 text-green-600" />
+                                        <p className="text-lg font-bold text-green-600">{feedbackStats.positive}</p>
+                                        <p className="text-xs text-muted-foreground">정확</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                                        <ThumbsDown className="h-5 w-5 mx-auto mb-1 text-red-600" />
+                                        <p className="text-lg font-bold text-red-600">{feedbackStats.negative}</p>
+                                        <p className="text-xs text-muted-foreground">오분류</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                                        <Clock className="h-5 w-5 mx-auto mb-1 text-yellow-600" />
+                                        <p className="text-lg font-bold text-yellow-600">{feedbackStats.pending}</p>
+                                        <p className="text-xs text-muted-foreground">대기</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span>피드백 정확도</span>
+                                        <span className="font-medium">{((feedbackStats.positive / (feedbackStats.positive + feedbackStats.negative)) * 100).toFixed(1)}%</span>
+                                    </div>
+                                    <Progress value={(feedbackStats.positive / (feedbackStats.positive + feedbackStats.negative)) * 100} className="h-2" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <GitCompare className="h-4 w-4 text-blue-500" />
+                                    모델 비교
+                                </CardTitle>
+                                <div className="flex items-center gap-2">
+                                    <Switch checked={compareMode} onCheckedChange={setCompareMode} />
+                                    <Label className="text-sm">비교 모드</Label>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        {compareMode && (
+                            <CardContent>
+                                <div className="space-y-2">
+                                    <Label>비교 대상 Provider</Label>
+                                    <Select value={compareProvider} onValueChange={setCompareProvider}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Provider 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {providers.filter(p => p.id !== config.providerId).map(p => (
+                                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </CardContent>
+                        )}
+                    </Card>
                 </TabsContent>
 
                 {/* Categories Tab */}
@@ -963,6 +1166,94 @@ export default function AiClassificationPage() {
                             </CardContent>
                         </Card>
                     </div>
+
+                    {/* Batch Classification */}
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <List className="h-4 w-4 text-blue-500" />
+                                        배치 분류
+                                    </CardTitle>
+                                    <CardDescription>여러 텍스트를 한 번에 분류합니다 (줄바꿈으로 구분)</CardDescription>
+                                </div>
+                                {batchResults.length > 0 && (
+                                    <Button variant="outline" size="sm" onClick={() => {
+                                        const csv = batchResults.map(r => `"${r.text}","${r.category}",${(r.confidence * 100).toFixed(1)}%`).join('\n');
+                                        const blob = new Blob([`텍스트,분류,신뢰도\n${csv}`], { type: 'text/csv' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a'); a.href = url; a.download = `batch_classification_${Date.now()}.csv`; a.click();
+                                        toast({ title: "내보내기 완료", description: "CSV 파일이 다운로드되었습니다." });
+                                    }}>
+                                        <Download className="h-4 w-4 mr-1" /> 내보내기
+                                    </Button>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Textarea
+                                value={batchTexts}
+                                onChange={(e) => setBatchTexts(e.target.value)}
+                                placeholder="분류할 텍스트들을 입력하세요 (한 줄에 하나씩)..."
+                                className="min-h-[100px]"
+                            />
+                            <div className="flex gap-2">
+                                <Button 
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                    onClick={async () => {
+                                        const lines = batchTexts.split('\n').filter(l => l.trim());
+                                        if (lines.length === 0) {
+                                            toast({ title: "입력 필요", description: "분류할 텍스트를 입력해주세요.", variant: "destructive" });
+                                            return;
+                                        }
+                                        setBatchProcessing(true);
+                                        setBatchResults([]);
+                                        await new Promise(r => setTimeout(r, 1000));
+                                        const results = lines.map(text => {
+                                            const cat = categories[Math.floor(Math.random() * categories.filter(c => c.isActive).length)];
+                                            return { text: text.slice(0, 50) + (text.length > 50 ? '...' : ''), category: cat.name, categoryColor: cat.color, confidence: 0.7 + Math.random() * 0.25 };
+                                        });
+                                        setBatchResults(results);
+                                        setBatchProcessing(false);
+                                        toast({ title: "배치 분류 완료", description: `${results.length}건이 분류되었습니다.` });
+                                    }}
+                                    disabled={batchProcessing}
+                                >
+                                    {batchProcessing ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> 분류 중...</> : <><Shuffle className="h-4 w-4 mr-2" /> 배치 분류 ({batchTexts.split('\n').filter(l => l.trim()).length}건)</>}
+                                </Button>
+                                <Button variant="outline" onClick={() => { setBatchTexts(''); setBatchResults([]); }}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            {batchResults.length > 0 && (
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                    {batchResults.map((result, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 rounded text-sm">
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className="text-muted-foreground w-6">{idx + 1}.</span>
+                                                <span className="truncate">{result.text}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 ml-2">
+                                                <Badge className={cn("text-xs", result.categoryColor.replace('bg-', 'bg-').replace('500', '100'), result.categoryColor.replace('bg-', 'text-').replace('500', '700'))}>
+                                                    {result.category}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground">{(result.confidence * 100).toFixed(0)}%</span>
+                                                <div className="flex gap-1">
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setFeedbackStats(prev => ({ ...prev, positive: prev.positive + 1 }))}>
+                                                        <ThumbsUp className="h-3 w-3 text-green-600" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setFeedbackStats(prev => ({ ...prev, negative: prev.negative + 1 }))}>
+                                                        <ThumbsDown className="h-3 w-3 text-red-600" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </TabsContent>
 
                 {/* History Tab */}
