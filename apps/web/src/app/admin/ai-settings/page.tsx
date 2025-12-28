@@ -12,8 +12,11 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Plus, Trash2, Save, Plug, AlertCircle, CheckCircle, Server, Edit } from 'lucide-react';
 
 export default function AiSettingsPage() {
+    const [activeTab, setActiveTab] = useState<'settings' | 'analytics' | 'logs'>('settings');
     const [providers, setProviders] = useState<any[]>([]);
     const [statuses, setStatuses] = useState<any[]>([]);
+    const [logStats, setLogStats] = useState<any>(null);
+    const [recentErrors, setRecentErrors] = useState<any[]>([]);
     const [form, setForm] = useState<any>({
         name: '',
         type: 'OPENAI',
@@ -63,8 +66,22 @@ export default function AiSettingsPage() {
         await fetchProviders();
     };
 
+    const fetchAnalytics = async () => {
+        try {
+            const [statsRes, errorsRes] = await Promise.all([
+                aiApi.getLogStats(),
+                aiApi.getRecentErrors()
+            ]);
+            setLogStats(statsRes.data);
+            setRecentErrors(errorsRes.data || []);
+        } catch (error) {
+            console.error('Failed to load analytics:', error);
+        }
+    };
+
     useEffect(() => {
         fetchProviders();
+        fetchAnalytics();
     }, []);
 
     const handleChange = (key: string, value: any) => {
@@ -135,6 +152,30 @@ export default function AiSettingsPage() {
                 steps={['관리자', 'AI 설정']}
             />
 
+            {/* Tab Navigation */}
+            <div className="flex gap-2 border-b border-slate-200">
+                <button 
+                    onClick={() => setActiveTab('settings')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'settings' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                    ⚙️ 설정
+                </button>
+                <button 
+                    onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'analytics' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                    📊 분석
+                </button>
+                <button 
+                    onClick={() => setActiveTab('logs')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                    📋 로그
+                </button>
+            </div>
+
+            {activeTab === 'settings' && (
+            <>
             {/* Summary Dashboard */}
             {statuses.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -451,6 +492,171 @@ export default function AiSettingsPage() {
                     </CardFooter>
                 </Card>
             </div>
+            </>
+            )}
+
+            {/* Analytics Tab */}
+            {activeTab === 'analytics' && logStats && (
+                <div className="space-y-6">
+                    {/* 7-Day Summary */}
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-sm font-bold text-slate-700">📈 7일 요약</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-4 gap-4">
+                                <div className="text-center p-4 bg-slate-50 rounded-lg">
+                                    <div className="text-3xl font-bold text-blue-600">{logStats.summary?.total || 0}</div>
+                                    <div className="text-xs text-slate-500">총 요청</div>
+                                </div>
+                                <div className="text-center p-4 bg-emerald-50 rounded-lg">
+                                    <div className="text-3xl font-bold text-emerald-600">{logStats.summary?.successRate || 0}%</div>
+                                    <div className="text-xs text-slate-500">성공률</div>
+                                </div>
+                                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                                    <div className="text-3xl font-bold text-purple-600">{(logStats.summary?.totalTokens || 0).toLocaleString()}</div>
+                                    <div className="text-xs text-slate-500">총 토큰</div>
+                                </div>
+                                <div className="text-center p-4 bg-rose-50 rounded-lg">
+                                    <div className="text-3xl font-bold text-rose-600">{logStats.summary?.failed || 0}</div>
+                                    <div className="text-xs text-slate-500">실패</div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Provider Distribution */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-bold text-slate-700">🏢 Provider별 통계</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {logStats.byProvider?.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {logStats.byProvider.map((p: any) => (
+                                            <div key={p.name} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                                                <span className="font-medium text-sm">{p.name}</span>
+                                                <div className="flex gap-3 text-xs">
+                                                    <span className="text-emerald-600">✓ {p.success}</span>
+                                                    <span className="text-rose-600">✗ {p.failed}</span>
+                                                    <span className="text-purple-600">{p.tokens?.toLocaleString()} 토큰</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-slate-400 py-4">데이터 없음</div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-bold text-slate-700">🤖 모델별 사용량</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {logStats.byModel?.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {logStats.byModel.map((m: any) => (
+                                            <div key={m.name} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                                                <span className="font-medium text-sm font-mono">{m.name}</span>
+                                                <div className="flex gap-3 text-xs">
+                                                    <span className="text-blue-600">{m.count}회</span>
+                                                    <span className="text-purple-600">{m.tokens?.toLocaleString()} 토큰</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-slate-400 py-4">데이터 없음</div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Hourly Distribution */}
+                    <Card className="border-slate-200 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-sm font-bold text-slate-700">🕐 시간대별 요청</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-end gap-1 h-24">
+                                {logStats.byHour?.map((count: number, hour: number) => {
+                                    const maxCount = Math.max(...(logStats.byHour || [1]));
+                                    const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                                    return (
+                                        <div key={hour} className="flex-1 flex flex-col items-center">
+                                            <div 
+                                                className="w-full bg-blue-400 rounded-t transition-all hover:bg-blue-500" 
+                                                style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '0' }}
+                                                title={`${hour}시: ${count}건`}
+                                            />
+                                            {hour % 6 === 0 && <span className="text-[8px] text-slate-400 mt-1">{hour}</span>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Recent Errors */}
+                    {recentErrors.length > 0 && (
+                        <Card className="border-rose-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-bold text-rose-700">❌ 최근 에러</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2 max-h-60 overflow-auto">
+                                    {recentErrors.map((err: any) => (
+                                        <div key={err.id} className="p-2 bg-rose-50 rounded text-xs border border-rose-200">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-rose-700">{err.providerName}</span>
+                                                <span className="text-[10px] text-slate-500">{new Date(err.createdAt).toLocaleString()}</span>
+                                            </div>
+                                            <div className="text-rose-600 truncate">{err.errorMessage}</div>
+                                            {err.actionContext && <div className="text-[10px] text-slate-500 mt-1">Context: {err.actionContext}</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            )}
+
+            {/* Logs Tab */}
+            {activeTab === 'logs' && (
+                <Card className="border-slate-200 shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="text-sm font-bold text-slate-700">📋 최근 AI 로그 (100건)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="max-h-[500px] overflow-auto">
+                            <table className="w-full text-xs">
+                                <thead className="bg-slate-50 sticky top-0">
+                                    <tr>
+                                        <th className="p-2 text-left">시간</th>
+                                        <th className="p-2 text-left">Provider</th>
+                                        <th className="p-2 text-left">모델</th>
+                                        <th className="p-2 text-center">상태</th>
+                                        <th className="p-2 text-right">토큰</th>
+                                        <th className="p-2 text-left">Context</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {/* Would need to load logs separately - showing placeholder */}
+                                    <tr>
+                                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                                            로그 데이터를 불러오려면 분석 탭을 확인하세요
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

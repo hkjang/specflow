@@ -16,6 +16,16 @@ export class AiController {
         return this.providerService.getLogs();
     }
 
+    @Get('logs/stats')
+    async getLogStats() {
+        return this.providerService.getLogStats();
+    }
+
+    @Get('logs/errors')
+    async getRecentErrors() {
+        return this.providerService.getRecentErrors();
+    }
+
     @Get('providers')
     async getProviders() {
         return this.providerService.findAll();

@@ -102,6 +102,8 @@ export const aiApi = {
     deleteProvider: (id: string) => api.delete(`/ai/providers/${id}`),
 
     getLogs: () => api.get('/ai/logs'),
+    getLogStats: () => api.get('/ai/logs/stats'),
+    getRecentErrors: () => api.get('/ai/logs/errors'),
 
     testProvider: (message: string, providerId?: string) => api.post('/ai/test', { message, providerId }),
 };
