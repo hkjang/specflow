@@ -60,6 +60,12 @@ export default function CrawlersPage() {
     });
     const [runningId, setRunningId] = useState<string | null>(null);
     const [lastRunResult, setLastRunResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+    const [statusFilter, setStatusFilter] = useState<string>('ALL');
+    const [autoRefresh, setAutoRefresh] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     useEffect(() => {
         fetchCrawlers();
@@ -75,6 +81,67 @@ export default function CrawlersPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Auto-refresh every 30 seconds
+    useEffect(() => {
+        if (!autoRefresh) return;
+        const interval = setInterval(fetchCrawlers, 30000);
+        return () => clearInterval(interval);
+    }, [autoRefresh]);
+
+    // Toast notification
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    // Get filtered crawlers
+    const getFilteredCrawlers = () => {
+        return crawlers.filter(c => {
+            const matchesSearch = !searchTerm || 
+                c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.url.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCategory = categoryFilter === 'ALL' || c.category === categoryFilter;
+            const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
+            return matchesSearch && matchesCategory && matchesStatus;
+        });
+    };
+
+    // Select all toggle
+    const toggleSelectAll = () => {
+        const filtered = getFilteredCrawlers();
+        if (selectedIds.length === filtered.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filtered.map(c => c.id));
+        }
+    };
+
+    // Bulk actions
+    const handleBulkRun = async () => {
+        for (const id of selectedIds) {
+            const crawler = crawlers.find(c => c.id === id);
+            if (crawler) await handleRun(crawler);
+        }
+        setSelectedIds([]);
+        showToast(`${selectedIds.length}개 크롤러 실행 완료`);
+    };
+
+    const handleBulkToggle = async (active: boolean) => {
+        for (const id of selectedIds) {
+            await api.patch(`/collection/crawlers/${id}`, { status: active ? 'ACTIVE' : 'PAUSED' });
+        }
+        await fetchCrawlers();
+        setSelectedIds([]);
+        showToast(`${selectedIds.length}개 크롤러 ${active ? '활성화' : '일시정지'}`);
+    };
+
+    // Success rate calculation
+    const getSuccessRate = (crawler: Crawler) => {
+        const total = (crawler.successCount || 0) + (crawler.errorCount || 0);
+        if (total === 0) return 0;
+        return Math.round(((crawler.successCount || 0) / total) * 100);
     };
 
     const resetForm = () => {
@@ -248,14 +315,66 @@ export default function CrawlersPage() {
                 </Card>
             </div>
 
-            <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
+            {/* Search, Filter, and Actions Bar */}
+            <div className="flex flex-wrap justify-between items-center gap-3 p-4 bg-slate-50 rounded-lg border">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Input 
+                        placeholder="이름/URL 검색..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="h-9 w-[180px] bg-white"
+                    />
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger className="h-9 w-[100px] bg-white">
+                            <SelectValue placeholder="카테고리" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">전체</SelectItem>
+                            {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="h-9 w-[100px] bg-white">
+                            <SelectValue placeholder="상태" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">전체</SelectItem>
+                            <SelectItem value="ACTIVE">활성</SelectItem>
+                            <SelectItem value="PAUSED">정지</SelectItem>
+                            <SelectItem value="ERROR">오류</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={autoRefresh} 
+                            onChange={(e) => setAutoRefresh(e.target.checked)}
+                            className="w-3 h-3"
+                        />
+                        🔄 자동 (30s)
+                    </label>
+                </div>
+                <div className="flex items-center gap-2">
+                    {selectedIds.length > 0 && (
+                        <div className="flex items-center gap-2 mr-2">
+                            <span className="text-xs text-slate-500">{selectedIds.length}개 선택</span>
+                            <Button variant="outline" size="sm" onClick={handleBulkRun} className="h-8 text-xs text-emerald-600">
+                                ⚡ 일괄 실행
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleBulkToggle(true)} className="h-8 text-xs text-blue-600">
+                                ▶ 활성화
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleBulkToggle(false)} className="h-8 text-xs text-amber-600">
+                                ⏸ 정지
+                            </Button>
+                        </div>
+                    )}
                     <Button variant="outline" size="sm" onClick={fetchCrawlers}>
                         <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> 새로고침
                     </Button>
                     <Link href="/admin/collection/history">
                         <Button variant="outline" size="sm">
-                            <History className="h-4 w-4 mr-1" /> 수집 이력
+                            <History className="h-4 w-4 mr-1" /> 이력
                         </Button>
                     </Link>
                 </div>
@@ -391,19 +510,41 @@ export default function CrawlersPage() {
                     <Table>
                         <TableHeader className="bg-slate-50">
                             <TableRow>
+                                <TableHead className="w-10">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedIds.length === getFilteredCrawlers().length && getFilteredCrawlers().length > 0}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4"
+                                    />
+                                </TableHead>
                                 <TableHead>봇 이름</TableHead>
                                 <TableHead>카테고리</TableHead>
                                 <TableHead>대상 URL</TableHead>
                                 <TableHead>주기</TableHead>
                                 <TableHead>마지막 실행</TableHead>
-                                <TableHead>성공/오류</TableHead>
+                                <TableHead>성공률</TableHead>
                                 <TableHead>상태</TableHead>
                                 <TableHead className="text-right">관리</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {crawlers.map((crawler) => (
-                                <TableRow key={crawler.id} className="hover:bg-slate-50">
+                            {getFilteredCrawlers().map((crawler) => (
+                                <TableRow key={crawler.id} className={`hover:bg-slate-50 ${selectedIds.includes(crawler.id) ? 'bg-blue-50' : ''}`}>
+                                    <TableCell>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedIds.includes(crawler.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedIds([...selectedIds, crawler.id]);
+                                                } else {
+                                                    setSelectedIds(selectedIds.filter(id => id !== crawler.id));
+                                                }
+                                            }}
+                                            className="w-4 h-4"
+                                        />
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <Bot className="h-4 w-4 text-slate-400" />
@@ -429,10 +570,16 @@ export default function CrawlersPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-2 text-xs">
-                                            <span className="text-green-600 font-medium">{crawler.successCount || 0}</span>
-                                            <span className="text-slate-300">/</span>
-                                            <span className="text-red-500 font-medium">{crawler.errorCount || 0}</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-12 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full ${getSuccessRate(crawler) >= 80 ? 'bg-emerald-500' : getSuccessRate(crawler) >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${getSuccessRate(crawler)}%` }}
+                                                />
+                                            </div>
+                                            <span className={`text-xs font-medium ${getSuccessRate(crawler) >= 80 ? 'text-emerald-600' : getSuccessRate(crawler) >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                                {getSuccessRate(crawler)}%
+                                            </span>
                                         </div>
                                     </TableCell>
                                     <TableCell>{getStatusBadge(crawler.status)}</TableCell>
