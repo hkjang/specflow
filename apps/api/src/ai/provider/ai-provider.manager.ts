@@ -69,6 +69,11 @@ export class AiProviderManager implements OnModuleInit {
                         successCount: 0,
                         failureCount: 0,
                         avgLatencyMs: 0,
+                        totalTokensUsed: 0,
+                        promptTokensUsed: 0,
+                        completionTokensUsed: 0,
+                        estimatedCostUsd: 0,
+                        lastUsed: null,
                     });
                 }
             }
@@ -153,6 +158,21 @@ export class AiProviderManager implements OnModuleInit {
                 );
                 status.isHealthy = true;
                 status.lastError = null;
+
+                // Track token usage
+                status.totalTokensUsed += response.usage.totalTokens;
+                status.promptTokensUsed += response.usage.promptTokens;
+                status.completionTokensUsed += response.usage.completionTokens;
+                status.lastUsed = new Date();
+
+                // Estimate cost (OpenAI pricing)
+                if (config.type === 'OPENAI') {
+                    const modelKey = response.modelUsed?.includes('gpt-4') ? 
+                        (response.modelUsed.includes('turbo') ? 'gpt-4-turbo' : 'gpt-4') : 'gpt-3.5-turbo';
+                    const costs = { 'gpt-4': { p: 0.03, c: 0.06 }, 'gpt-4-turbo': { p: 0.01, c: 0.03 }, 'gpt-3.5-turbo': { p: 0.0005, c: 0.0015 } };
+                    const cost = costs[modelKey as keyof typeof costs] || { p: 0.01, c: 0.03 };
+                    status.estimatedCostUsd += (response.usage.promptTokens * cost.p + response.usage.completionTokens * cost.c) / 1000;
+                }
 
                 return response;
 

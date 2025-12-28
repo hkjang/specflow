@@ -72,7 +72,18 @@ export default function AiSettingsPage() {
     };
 
     const handleEdit = (provider: any) => {
-        setForm({ ...provider });
+        // Coerce null values to empty strings to prevent React warning about null value props
+        setForm({
+            ...provider,
+            name: provider.name ?? '',
+            endpoint: provider.endpoint ?? '',
+            apiKey: provider.apiKey ?? '',
+            models: provider.models ?? '',
+            timeout: provider.timeout ?? 120,
+            maxRetries: provider.maxRetries ?? 3,
+            retryDelayMs: provider.retryDelayMs ?? 1000,
+            priority: provider.priority ?? 1
+        });
     };
 
     const handleSave = async () => {
@@ -123,6 +134,40 @@ export default function AiSettingsPage() {
                 badgeText="SYSTEM"
                 steps={['관리자', 'AI 설정']}
             />
+
+            {/* Summary Dashboard */}
+            {statuses.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <Card className="border-slate-200 shadow-sm p-4 text-center">
+                        <div className="text-2xl font-bold text-blue-600">{providers.filter(p => p.isActive).length}</div>
+                        <div className="text-xs text-slate-500">활성 Provider</div>
+                    </Card>
+                    <Card className="border-slate-200 shadow-sm p-4 text-center">
+                        <div className="text-2xl font-bold text-emerald-600">
+                            {statuses.reduce((sum: number, s: any) => sum + (s.successCount || 0), 0)}
+                        </div>
+                        <div className="text-xs text-slate-500">총 성공</div>
+                    </Card>
+                    <Card className="border-slate-200 shadow-sm p-4 text-center">
+                        <div className="text-2xl font-bold text-rose-600">
+                            {statuses.reduce((sum: number, s: any) => sum + (s.failureCount || 0), 0)}
+                        </div>
+                        <div className="text-xs text-slate-500">총 실패</div>
+                    </Card>
+                    <Card className="border-slate-200 shadow-sm p-4 text-center">
+                        <div className="text-2xl font-bold text-purple-600">
+                            {statuses.reduce((sum: number, s: any) => sum + (s.totalTokensUsed || 0), 0).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-slate-500">총 토큰</div>
+                    </Card>
+                    <Card className="border-slate-200 shadow-sm p-4 text-center">
+                        <div className="text-2xl font-bold text-amber-600">
+                            ${statuses.reduce((sum: number, s: any) => sum + (s.estimatedCostUsd || 0), 0).toFixed(4)}
+                        </div>
+                        <div className="text-xs text-slate-500">추정 비용</div>
+                    </Card>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Provider List */}
@@ -207,23 +252,56 @@ export default function AiSettingsPage() {
                             {statuses.length === 0 ? (
                                 <div className="text-slate-400 text-xs text-center py-3">상태 데이터 없음</div>
                             ) : (
-                                statuses.map((s: any) => (
-                                    <div key={s.id} className={`p-2 border rounded-lg text-xs ${s.isHealthy ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="font-bold">{s.name}</span>
-                                            <span className={s.isHealthy ? 'text-emerald-600' : 'text-rose-600'}>
-                                                {s.isHealthy ? '✓ Healthy' : '✗ Unhealthy'}
-                                            </span>
+                                statuses.map((s: any) => {
+                                    const successRate = s.successCount + s.failureCount > 0 
+                                        ? Math.round((s.successCount / (s.successCount + s.failureCount)) * 100) 
+                                        : 100;
+                                    return (
+                                        <div key={s.id} className={`p-3 border rounded-lg text-xs ${s.isHealthy ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold">{s.name}</span>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] ${successRate >= 90 ? 'bg-emerald-200 text-emerald-800' : successRate >= 70 ? 'bg-yellow-200 text-yellow-800' : 'bg-rose-200 text-rose-800'}`}>
+                                                        {successRate}%
+                                                    </span>
+                                                </div>
+                                                <span className={s.isHealthy ? 'text-emerald-600' : 'text-rose-600'}>
+                                                    {s.isHealthy ? '✓ Healthy' : '✗ Unhealthy'}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-2 text-[10px] text-slate-600 mb-2">
+                                                <div className="text-center p-1 bg-white rounded">
+                                                    <div className="font-bold text-emerald-600">{s.successCount}</div>
+                                                    <div className="text-[8px]">성공</div>
+                                                </div>
+                                                <div className="text-center p-1 bg-white rounded">
+                                                    <div className="font-bold text-rose-600">{s.failureCount}</div>
+                                                    <div className="text-[8px]">실패</div>
+                                                </div>
+                                                <div className="text-center p-1 bg-white rounded">
+                                                    <div className="font-bold text-blue-600">{s.avgLatencyMs}ms</div>
+                                                    <div className="text-[8px]">평균</div>
+                                                </div>
+                                                <div className="text-center p-1 bg-white rounded">
+                                                    <div className="font-bold text-purple-600">{s.totalTokensUsed?.toLocaleString() || 0}</div>
+                                                    <div className="text-[8px]">토큰</div>
+                                                </div>
+                                            </div>
+                                            {s.estimatedCostUsd > 0 && (
+                                                <div className="text-[10px] text-slate-500 flex items-center gap-2 mb-1">
+                                                    💰 추정 비용: <span className="font-bold text-amber-600">${s.estimatedCostUsd.toFixed(4)}</span>
+                                                    <span className="text-[8px]">(P:{s.promptTokensUsed?.toLocaleString() || 0} / C:{s.completionTokensUsed?.toLocaleString() || 0})</span>
+                                                </div>
+                                            )}
+                                            {s.lastUsed && (
+                                                <div className="text-[9px] text-slate-400">
+                                                    마지막 사용: {new Date(s.lastUsed).toLocaleString()}
+                                                </div>
+                                            )}
+                                            {s.lastError && <div className="mt-1 text-[10px] text-rose-600 truncate">❌ {s.lastError}</div>}
                                         </div>
-                                        <div className="flex gap-3 text-[10px] text-slate-600">
-                                            <span>✓ {s.successCount}</span>
-                                            <span>✗ {s.failureCount}</span>
-                                            <span>⏱ {s.avgLatencyMs}ms</span>
-                                            {s.lastChecked && <span>🕐 {new Date(s.lastChecked).toLocaleTimeString()}</span>}
-                                        </div>
-                                        {s.lastError && <div className="mt-1 text-[10px] text-rose-600 truncate">❌ {s.lastError}</div>}
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </CardContent>
                     </Card>
