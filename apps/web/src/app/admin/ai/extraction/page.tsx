@@ -886,60 +886,147 @@ export default function AiExtractionPage() {
                 <TabsContent value="test" className="space-y-4">
                     <Card className="border-slate-200 shadow-sm">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-slate-800">
-                                <TestTube2 className="h-5 w-5 text-green-500" />
-                                추출 테스트
-                            </CardTitle>
-                            <CardDescription>
-                                샘플 텍스트를 입력하여 현재 설정으로 요구사항 추출을 테스트해보세요.
-                            </CardDescription>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2 text-slate-800">
+                                        <TestTube2 className="h-5 w-5 text-green-500" />
+                                        추출 테스트
+                                    </CardTitle>
+                                    <CardDescription>
+                                        샘플 텍스트를 입력하여 현재 설정으로 요구사항 추출을 테스트해보세요.
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {/* Sample Text Dropdown */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <BookOpen className="h-4 w-4 mr-2" />
+                                                샘플 텍스트
+                                                <ChevronDown className="h-3 w-3 ml-1" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-56">
+                                            <DropdownMenuLabel>샘플 문서 선택</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            {SAMPLE_TEXTS.map((sample) => (
+                                                <DropdownMenuItem 
+                                                    key={sample.id}
+                                                    onClick={() => handleApplySampleText(sample)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <sample.icon className="h-4 w-4 mr-2 text-slate-500" />
+                                                    {sample.name}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    {/* Template Selection */}
+                                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                                        <SelectTrigger className="w-[140px] h-9">
+                                            <SelectValue placeholder="템플릿" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {templates.map((t) => (
+                                                <SelectItem key={t.id} value={t.id}>
+                                                    {t.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <Textarea
-                                placeholder="테스트할 문서 내용을 입력하세요... 
+                            <div className="relative">
+                                <Textarea
+                                    ref={testTextRef}
+                                    placeholder="테스트할 문서 내용을 입력하세요... 
 예: 시스템은 사용자 인증을 위해 OAuth 2.0을 지원해야 합니다. 모든 API 응답은 3초 이내에 반환되어야 하며, 동시 접속자 1000명을 지원해야 합니다."
-                                value={testText}
-                                onChange={(e) => setTestText(e.target.value)}
-                                rows={6}
-                                className="resize-none"
-                            />
-                            <Button 
-                                onClick={handleTest} 
-                                disabled={testing || !testText.trim()}
-                                className="bg-green-600 hover:bg-green-700"
-                            >
-                                {testing ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        추출 중...
-                                    </>
-                                ) : (
-                                    <>
-                                        <PlayCircle className="h-4 w-4 mr-2" />
-                                        테스트 실행
-                                    </>
+                                    value={testText}
+                                    onChange={(e) => setTestText(e.target.value)}
+                                    rows={8}
+                                    className="resize-none font-mono text-sm pr-10"
+                                />
+                                {testText && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="absolute top-2 right-2 h-6 w-6 p-0 text-slate-400 hover:text-slate-600"
+                                        onClick={() => setTestText('')}
+                                    >
+                                        <XCircle className="h-4 w-4" />
+                                    </Button>
                                 )}
-                            </Button>
+                            </div>
+                            
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                    <span>{testText.length} 자</span>
+                                    <span>~{Math.ceil(testText.length / 4)} tokens</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button 
+                                        onClick={handleTest} 
+                                        disabled={testing || !testText.trim()}
+                                        className="bg-green-600 hover:bg-green-700"
+                                    >
+                                        {testing ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                추출 중...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PlayCircle className="h-4 w-4 mr-2" />
+                                                테스트 실행
+                                                <span className="ml-2 text-xs opacity-70">Ctrl+Enter</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
 
                             {testResult && (
                                 <div className={cn(
-                                    "p-4 rounded-lg border",
+                                    "p-4 rounded-lg border animate-in fade-in slide-in-from-top-2",
                                     testResult.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
                                 )}>
                                     {testResult.success ? (
                                         <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-green-700">
-                                                <CheckCircle2 className="h-5 w-5" />
-                                                <span className="font-medium">추출 성공</span>
-                                                <span className="text-sm text-green-600">
-                                                    ({testResult.processingTime}초 소요, {testResult.tokensUsed} tokens)
-                                                </span>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-green-700">
+                                                    <CheckCircle2 className="h-5 w-5" />
+                                                    <span className="font-medium">추출 성공</span>
+                                                    <span className="text-sm text-green-600">
+                                                        ({testResult.processingTime}초 소요, {testResult.tokensUsed} tokens)
+                                                    </span>
+                                                </div>
+                                                {/* Export Dropdown */}
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="outline" size="sm">
+                                                            <Download className="h-4 w-4 mr-1" />
+                                                            내보내기
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleExportResults('json')}>
+                                                            <FileCode2 className="h-4 w-4 mr-2" />
+                                                            JSON
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleExportResults('csv')}>
+                                                            <FileText className="h-4 w-4 mr-2" />
+                                                            CSV
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                             <div className="space-y-2">
                                                 {testResult.extractedRequirements.map((req: any, idx: number) => (
-                                                    <div key={idx} className="bg-white p-3 rounded border border-green-100">
+                                                    <div key={idx} className="bg-white p-3 rounded border border-green-100 hover:shadow-sm transition-shadow">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <Badge variant="outline" className="text-xs">
+                                                            <Badge variant="outline" className="text-xs font-mono">
                                                                 {req.id}
                                                             </Badge>
                                                             <Badge 
@@ -958,6 +1045,11 @@ export default function AiExtractionPage() {
                                                             >
                                                                 {req.priority === 'high' ? '높음' : '중간'}
                                                             </Badge>
+                                                            {req.complexity && (
+                                                                <Badge variant="secondary" className="text-xs">
+                                                                    복잡도: {req.complexity}
+                                                                </Badge>
+                                                            )}
                                                         </div>
                                                         <p className="text-sm text-slate-700">{req.title}</p>
                                                     </div>
